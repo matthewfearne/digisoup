@@ -1,19 +1,18 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v5 adds adaptive cooperation threshold (vampire bat reciprocity):
-The cooperation threshold adjusts based on recent interaction success.
-If interactions have been working (entropy changed), lower the bar —
-cooperate more readily. If they've been failing, raise it — be reluctant.
-Uses the existing interaction_outcomes history, no new state needed.
+v4 adds spatial memory (slime mold path reinforcement):
+The agent remembers where resources were found using a decaying direction
+vector. When no resources are currently visible, it follows the memory
+"scent trail" back toward productive areas. Denser sightings reinforce
+the trail more strongly. Stale memories decay to zero.
 
-v4 added spatial memory (slime mold path reinforcement).
 v3 added temporal phase cycling (jellyfish-inspired oscillation).
 
-Priority rules (modified by phase + memory + adaptive cooperation):
+Priority rules (modified by phase + memory):
 1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources or follow memory
 3. Exploit phase: seek resources at moderate energy (memory-assisted)
-4. Agents nearby -> adaptive cooperation threshold
+4. Agents nearby -> phase-dependent cooperation threshold
 5. Stable environment -> explore gradient (with scan bias in explore phase)
 6. Chaotic environment -> exploit current role
 
@@ -28,10 +27,7 @@ from __future__ import annotations
 import numpy as np
 
 from .perception import Perception, MAX_ENTROPY
-from .state import (
-    DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
-    get_interaction_success_rate,
-)
+from .state import DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase
 
 
 # ---------------------------------------------------------------------------
@@ -58,11 +54,6 @@ _MOVE_ACTIONS = [FORWARD, BACKWARD, LEFT, RIGHT, TURN_LEFT, TURN_RIGHT]
 STABLE_THRESHOLD = 0.3    # change below this = "stable" environment
 EXPLOIT_ENERGY_SEEK = 0.7 # in exploit phase, seek resources below this energy
 MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
-
-# Adaptive cooperation thresholds (vampire bat reciprocity)
-COOP_BASE_EXPLORE = 0.7   # base threshold in explore phase
-COOP_BASE_EXPLOIT = 0.3   # base threshold in exploit phase
-COOP_ADAPT_RANGE = 0.2    # max adjustment up or down from base
 
 
 # ---------------------------------------------------------------------------
@@ -123,24 +114,6 @@ def _exploit_role(
 # Main action selection
 # ---------------------------------------------------------------------------
 
-def _adaptive_coop_threshold(state: DigiSoupState, phase: str) -> float:
-    """Compute cooperation threshold adapted by recent interaction success.
-
-    Vampire bat reciprocity: if interactions have been working, lower the
-    threshold (cooperate more readily). If failing, raise it (be reluctant).
-    With insufficient data, use the base phase-dependent threshold.
-    """
-    base = COOP_BASE_EXPLORE if phase == "explore" else COOP_BASE_EXPLOIT
-    success_rate = get_interaction_success_rate(state)
-    if success_rate is None:
-        return base
-    # success_rate 0.0 -> raise threshold by ADAPT_RANGE (reluctant)
-    # success_rate 0.5 -> no change
-    # success_rate 1.0 -> lower threshold by ADAPT_RANGE (eager)
-    adjustment = COOP_ADAPT_RANGE * (success_rate - 0.5) * 2.0
-    return max(0.05, min(0.95, base - adjustment))
-
-
 def _has_memory(state: DigiSoupState) -> bool:
     """Check if the agent has a usable resource memory."""
     return (
@@ -197,11 +170,11 @@ def select_action(
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng)
 
-    # Rule 4: Agents nearby — adaptive cooperation threshold.
-    # Base thresholds (explore: 0.7, exploit: 0.3) adjusted by recent
-    # interaction success rate. Vampire bat: reciprocity drives cooperation.
+    # Rule 4: Agents nearby — phase-dependent cooperation threshold.
+    # Explore: only interact if strongly cooperative (threshold 0.7).
+    # Exploit: interact more readily (threshold 0.3).
     if perception.agents_nearby:
-        coop_threshold = _adaptive_coop_threshold(state, phase)
+        coop_threshold = 0.7 if phase == "explore" else 0.3
         if state.cooperation_tendency > coop_threshold:
             return interact_action
         else:

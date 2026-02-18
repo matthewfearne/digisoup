@@ -6,9 +6,8 @@ from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
-    MEMORY_REINFORCE, RECENCY_DECAY, get_interaction_success_rate,
+    MEMORY_REINFORCE, RECENCY_DECAY,
 )
-from agents.digisoup.action import _adaptive_coop_threshold
 
 
 def test_policy_interface():
@@ -304,61 +303,3 @@ def test_memory_persists_through_policy():
     # Should still have some memory left after only 5 blank steps
     assert np.linalg.norm(state.resource_memory) > 0.0
     policy.close()
-
-
-def test_interaction_success_rate_insufficient_data():
-    """Success rate should be None with too few interactions."""
-    state = initial_state()
-    assert get_interaction_success_rate(state) is None
-
-    # Add 2 interactions (below threshold of 3)
-    state = state._replace(interaction_outcomes=(0.5, 0.0))
-    assert get_interaction_success_rate(state) is None
-
-
-def test_interaction_success_rate_computes():
-    """Success rate should reflect recent interaction outcomes."""
-    state = initial_state()
-
-    # 3 successes, 2 failures = 60% success
-    state = state._replace(interaction_outcomes=(0.5, 0.4, 0.0, 0.6, 0.0))
-    rate = get_interaction_success_rate(state)
-    assert rate is not None
-    assert abs(rate - 0.6) < 0.01
-
-    # All successes
-    state = state._replace(interaction_outcomes=(0.5, 0.4, 0.3))
-    assert get_interaction_success_rate(state) == 1.0
-
-    # All failures
-    state = state._replace(interaction_outcomes=(0.0, 0.0, 0.0))
-    assert get_interaction_success_rate(state) == 0.0
-
-
-def test_adaptive_threshold_lowers_on_success():
-    """High success rate should lower cooperation threshold."""
-    state = initial_state()
-
-    # No data: base threshold
-    base_explore = _adaptive_coop_threshold(state, "explore")
-    base_exploit = _adaptive_coop_threshold(state, "exploit")
-    assert abs(base_explore - 0.7) < 0.01
-    assert abs(base_exploit - 0.3) < 0.01
-
-    # All successes: threshold should drop (more willing to cooperate)
-    state = state._replace(interaction_outcomes=(0.5, 0.4, 0.6, 0.5, 0.3))
-    adapted_explore = _adaptive_coop_threshold(state, "explore")
-    adapted_exploit = _adaptive_coop_threshold(state, "exploit")
-    assert adapted_explore < base_explore
-    assert adapted_exploit < base_exploit
-
-
-def test_adaptive_threshold_raises_on_failure():
-    """Low success rate should raise cooperation threshold."""
-    state = initial_state()
-    base_explore = _adaptive_coop_threshold(state, "explore")
-
-    # All failures: threshold should rise (more reluctant)
-    state = state._replace(interaction_outcomes=(0.0, 0.0, 0.0, 0.0, 0.0))
-    adapted = _adaptive_coop_threshold(state, "explore")
-    assert adapted > base_explore

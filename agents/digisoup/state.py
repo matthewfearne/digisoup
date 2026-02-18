@@ -7,7 +7,6 @@ Ported from DigiSoup's biological model:
 - Interaction history: rolling window
 - Entropy state: running estimate of local environmental entropy
 - Spatial memory: decaying resource direction memory (slime mold path reinforcement)
-- Interaction success tracking: rolling window for adaptive cooperation (vampire bat)
 
 NO reward optimization. State updates use only entropy signals.
 """
@@ -225,23 +224,3 @@ def get_role(state: DigiSoupState) -> str:
     elif turn_frac > 0.35:
         return "scanner"
     return "generalist"
-
-
-# ---------------------------------------------------------------------------
-# Interaction success tracking (vampire bat reciprocity)
-# ---------------------------------------------------------------------------
-
-MIN_INTERACTIONS_FOR_ADAPTATION = 3  # need this many before adapting threshold
-
-def get_interaction_success_rate(state: DigiSoupState) -> float | None:
-    """Compute fraction of recent interactions that were successful.
-
-    Returns None if insufficient data (fewer than MIN_INTERACTIONS_FOR_ADAPTATION).
-    Success = non-zero change value in interaction_outcomes.
-    Vampire bat principle: remember who reciprocated, act accordingly.
-    """
-    outcomes = state.interaction_outcomes
-    if len(outcomes) < MIN_INTERACTIONS_FOR_ADAPTATION:
-        return None
-    successes = sum(1 for v in outcomes if v > 0.0)
-    return successes / len(outcomes)
