@@ -4,6 +4,9 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
+from agents.digisoup.action import (
+    select_action, CONSERVATION_DENSITY, CONSERVATION_DEPLETION,
+)
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
     MEMORY_REINFORCE, RECENCY_DECAY,
@@ -370,3 +373,61 @@ def test_perception_grid_flows_through_policy():
     # Grid should have updated
     assert state.prev_entropy_grid.max() > 0.0
     policy.close()
+
+
+def test_growth_rate_signal():
+    """Growth rate should be negative when entropy declines between frames."""
+    # Frame 1: noisy (high entropy)
+    obs1 = np.random.randint(0, 256, (88, 88, 3), dtype=np.uint8)
+    p1 = perceive(obs1)
+
+    # Frame 2: mostly black (low entropy) — environment has been depleted
+    obs2 = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs2[0:10, 0:10] = 50  # small dim patch to avoid perfect zero
+    p2 = perceive(obs2, prev_obs=obs1, prev_entropy_grid=p1.entropy_grid)
+
+    assert p2.growth_rate < 0.0  # entropy declined = depletion
+
+    # Frame 3: noisy again (entropy grew)
+    obs3 = np.random.randint(0, 256, (88, 88, 3), dtype=np.uint8)
+    p3 = perceive(obs3, prev_obs=obs2, prev_entropy_grid=p2.entropy_grid)
+
+    assert p3.growth_rate > 0.0  # entropy grew = recovery
+
+
+def test_conservation_backs_off_depleting_patch():
+    """Agent should move AWAY from resources when patch is actively depleting."""
+    from agents.digisoup.perception import Perception
+
+    # Craft a perception with dense resources and negative growth rate
+    perception = Perception(
+        entropy=2.0,
+        gradient=np.array([0.0, 1.0]),
+        entropy_grid=np.ones((4, 4)),
+        growth_gradient=np.zeros(2),
+        anomaly_direction=np.zeros(2),
+        anomaly_strength=0.0,
+        agents_nearby=False,
+        agent_direction=np.zeros(2),
+        agent_density=0.0,
+        resources_nearby=True,
+        resource_direction=np.array([0.0, 1.0]),  # resources to the right
+        resource_density=0.05,  # above CONSERVATION_DENSITY (0.02)
+        growth_rate=-0.3,  # below CONSERVATION_DEPLETION (-0.1) = depleting
+        change=0.1,
+        change_direction=np.zeros(2),
+    )
+
+    state = initial_state()
+    # Set energy above LOW_ENERGY_THRESHOLD so Rule 2 doesn't fire
+    state = state._replace(energy=0.8)
+
+    rng = np.random.default_rng(42)
+    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+
+    # Agent should NOT move toward resources (action RIGHT=4 would mean
+    # chasing resources to the right). Most actions should be LEFT=3 or
+    # BACKWARD=2 (moving away from resources at [0, 1]).
+    from agents.digisoup.action import RIGHT
+    right_count = sum(1 for a in actions if a == RIGHT)
+    assert right_count < 5, f"Agent moved right {right_count}/20 times — should back off"

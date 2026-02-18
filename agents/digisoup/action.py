@@ -1,5 +1,10 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
+v9 adds resource conservation (sustainable harvesting for Commons):
+- When in a dense resource patch that is actively depleting, back off
+- Perception-driven: uses growth_rate signal (dS/dt < 0 = patch dying)
+- Survival overrides conservation (Rule 2 still fires when energy low)
+
 v8 upgrades perception with thermodynamic sensing:
 - 4x4 fine-grained entropy gradient (replaces 2x2 quadrants)
 - Entropy growth gradient: follow where entropy is INCREASING (apple regrowth)
@@ -8,9 +13,10 @@ v8 upgrades perception with thermodynamic sensing:
 v4 added spatial memory (slime mold path reinforcement).
 v3 added temporal phase cycling (jellyfish-inspired oscillation).
 
-Priority rules (modified by phase + memory + growth + anomaly):
+Priority rules (modified by phase + memory + growth + anomaly + conservation):
 1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources or follow memory or growth
+2.5. Resource conservation: dense patch + depletion -> back off
 3. Exploit phase: seek resources at moderate energy (memory/growth-assisted)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
 5. Stable environment -> follow growth gradient or entropy gradient
@@ -57,6 +63,10 @@ MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
 
 # KL anomaly detection (agents in dark environments)
 ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
+
+# Resource conservation (sustainable harvesting for commons)
+CONSERVATION_DENSITY = 0.02    # resource density above this = "dense patch"
+CONSERVATION_DEPLETION = -0.1  # growth_rate below this = "actively depleting"
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +181,17 @@ def select_action(
             return _move_toward(perception.growth_gradient, rng)
         else:
             return _move_toward(perception.gradient, rng)
+
+    # Rule 2.5: Resource conservation — back off from depleting patches.
+    # In Commons Harvest, apple regrowth requires neighboring apples. If the
+    # agent strip-mines a patch, regrowth stops entirely (tipping point). When
+    # we detect dense resources AND negative growth rate (entropy declining =
+    # patch being depleted), move away to let it regrow. Survival (Rule 2)
+    # overrides this — a starving agent still eats.
+    if (perception.resources_nearby
+            and perception.resource_density > CONSERVATION_DENSITY
+            and perception.growth_rate < CONSERVATION_DEPLETION):
+        return _move_away(perception.resource_direction, rng)
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
     # Growth gradient added as fallback after memory.

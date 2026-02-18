@@ -44,6 +44,7 @@ class Perception(NamedTuple):
     resources_nearby: bool         # resource-coloured pixels detected
     resource_direction: np.ndarray # (dy, dx) toward resources
     resource_density: float        # fraction of resource pixels
+    growth_rate: float             # mean entropy change rate (+ = growing, - = depleting)
     change: float                  # frame-to-frame change entropy
     change_direction: np.ndarray   # (dy, dx) toward area of most change
 
@@ -297,6 +298,12 @@ def perceive(
     # Entropy growth gradient: where is entropy INCREASING? (dS/dt)
     growth_gradient = _entropy_growth_gradient(entropy_grid, prev_entropy_grid)
 
+    # Growth rate: scalar mean entropy change (positive = richer, negative = depleting)
+    if prev_entropy_grid is not None and entropy_grid.shape == prev_entropy_grid.shape:
+        growth_rate = float(np.mean(entropy_grid - prev_entropy_grid))
+    else:
+        growth_rate = 0.0
+
     # KL divergence anomaly detection
     kl_grid = _kl_divergence_grid(obs)
     anomaly_direction = _grid_gradient(kl_grid)
@@ -338,6 +345,7 @@ def perceive(
         resources_nearby=resources_nearby,
         resource_direction=resource_direction,
         resource_density=resource_density,
+        growth_rate=growth_rate,
         change=change,
         change_direction=change_direction,
     )
