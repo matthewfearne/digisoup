@@ -1,16 +1,14 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v6 adds entropy-as-energy with cockroach persistence:
-Energy depletion scales with environmental entropy — rich environments sustain,
-barren ones drain. Below COCKROACH_THRESHOLD, the agent enters survival mode:
-no random exploration, no cooperation, pure resource-seeking. Cockroach
-persistence: the last organism standing in any hostile environment.
+v4 adds spatial memory (slime mold path reinforcement):
+The agent remembers where resources were found using a decaying direction
+vector. When no resources are currently visible, it follows the memory
+"scent trail" back toward productive areas. Denser sightings reinforce
+the trail more strongly. Stale memories decay to zero.
 
-v4 added spatial memory (slime mold path reinforcement).
 v3 added temporal phase cycling (jellyfish-inspired oscillation).
 
-Priority rules (modified by phase + memory + cockroach mode):
-0. Cockroach mode -> pure resource-seeking (overrides all other rules)
+Priority rules (modified by phase + memory):
 1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources or follow memory
 3. Exploit phase: seek resources at moderate energy (memory-assisted)
@@ -29,10 +27,7 @@ from __future__ import annotations
 import numpy as np
 
 from .perception import Perception, MAX_ENTROPY
-from .state import (
-    DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
-    is_cockroach_mode,
-)
+from .state import DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase
 
 
 # ---------------------------------------------------------------------------
@@ -142,18 +137,6 @@ def select_action(
     rng = rng or np.random.default_rng()
     interact_action = n_actions - 1
     phase = get_phase(state)
-
-    # Rule 0: Cockroach survival mode — overrides everything.
-    # At critically low energy, no exploration, no cooperation, pure survival.
-    # Seek resources by any means: visible > memory > entropy gradient.
-    if is_cockroach_mode(state):
-        if perception.resources_nearby:
-            return _move_toward(perception.resource_direction, rng)
-        elif _has_memory(state):
-            return _move_toward(state.resource_memory, rng)
-        else:
-            # Desperate: move toward highest entropy (most likely to have stuff)
-            return _move_toward(perception.gradient, rng)
 
     # Rule 1: Random exploration — phase modulates probability.
     # Explore phase: cast a wider net. Exploit phase: stay focused.

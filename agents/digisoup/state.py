@@ -7,13 +7,6 @@ Ported from DigiSoup's biological model:
 - Interaction history: rolling window
 - Entropy state: running estimate of local environmental entropy
 - Spatial memory: decaying resource direction memory (slime mold path reinforcement)
-- Entropy-as-energy: environment entropy modulates energy dynamics (cockroach persistence)
-
-v6 adds entropy-driven energy dynamics (cockroach persistence):
-Energy depletion rate scales inversely with environmental entropy — rich environments
-sustain the agent, barren environments drain it faster. High entropy also provides
-a small passive energy trickle (entropy IS food). At critically low energy, the agent
-enters cockroach survival mode — no exploration waste, pure resource-seeking.
 
 NO reward optimization. State updates use only entropy signals.
 """
@@ -29,13 +22,10 @@ from typing import NamedTuple
 
 INITIAL_ENERGY = 1.0
 MAX_ENERGY = 2.0
-ENERGY_DEPLETION_BASE = 0.005      # base depletion per step
-ENERGY_DEPLETION_MAX = 0.010       # max depletion in zero-entropy environments
+ENERGY_DEPLETION = 0.005           # per step (lasts ~200 steps at zero income)
 ENERGY_INTERACTION_GAIN = 0.1      # from successful interaction
-ENERGY_ENTROPY_TRICKLE = 0.002     # max passive energy from high entropy environments
 
 LOW_ENERGY_THRESHOLD = 0.3         # below this = "hungry", seek resources
-COCKROACH_THRESHOLD = 0.15         # below this = survival mode (cockroach persistence)
 
 COOP_INITIAL = 0.5                 # start neutral
 COOP_SHIFT_UP = 0.05               # after successful interaction
@@ -109,10 +99,10 @@ def update_state(
 ) -> DigiSoupState:
     """Update internal state after taking an action and receiving observation.
 
-    Energy depletes each step, modulated by environmental entropy (cockroach
-    persistence). High-entropy environments sustain the agent (slower depletion
-    + passive trickle). Low-entropy environments drain faster. Successful
-    interactions restore energy and increase cooperation tendency.
+    Energy depletes each step. Successful interactions (entropy changed after
+    INTERACT) restore energy and increase cooperation tendency. Failed
+    interactions decrease cooperation tendency. This creates a feedback loop:
+    agents in environments where interaction causes change become cooperators.
 
     Resource memory (slime mold path reinforcement): when resources are seen,
     their direction is blended into a decaying memory vector. When resources
@@ -125,16 +115,8 @@ def update_state(
         ENTROPY_SMOOTHING * perception_entropy
     )
 
-    # Energy: entropy-modulated depletion (cockroach persistence).
-    # High entropy = slower depletion + small trickle. Low entropy = faster drain.
-    # entropy_estimate is in [0, ~5.0] (MAX_ENTROPY = log2(32) = 5.0)
-    from .perception import MAX_ENTROPY
-    entropy_ratio = min(prev_state.entropy_estimate / MAX_ENTROPY, 1.0)
-    # Depletion: interpolate between max (barren) and base (rich)
-    depletion = ENERGY_DEPLETION_MAX - (ENERGY_DEPLETION_MAX - ENERGY_DEPLETION_BASE) * entropy_ratio
-    # Trickle: small passive gain from high-entropy environments
-    trickle = ENERGY_ENTROPY_TRICKLE * entropy_ratio
-    energy = prev_state.energy - depletion + trickle
+    # Energy: deplete each step
+    energy = prev_state.energy - ENERGY_DEPLETION
 
     # Cooperation tendency starts from previous value
     cooperation_tendency = prev_state.cooperation_tendency
@@ -204,17 +186,6 @@ def update_state(
 # ---------------------------------------------------------------------------
 # Role emergence
 # ---------------------------------------------------------------------------
-
-def is_cockroach_mode(state: DigiSoupState) -> bool:
-    """Check if agent is in cockroach survival mode.
-
-    Below COCKROACH_THRESHOLD, the agent enters extreme conservation:
-    no random exploration, no cooperation, pure resource-seeking.
-    Cockroach persistence: survive in hostile environments by being
-    maximally efficient. The last thing to die in any ecosystem.
-    """
-    return state.energy < COCKROACH_THRESHOLD
-
 
 def get_phase(state: DigiSoupState) -> str:
     """Derive behavioral phase from step count.

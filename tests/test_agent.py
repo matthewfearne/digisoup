@@ -6,9 +6,7 @@ from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
-    MEMORY_REINFORCE, RECENCY_DECAY, is_cockroach_mode,
-    COCKROACH_THRESHOLD, ENERGY_DEPLETION_BASE, ENERGY_DEPLETION_MAX,
-    ENERGY_ENTROPY_TRICKLE,
+    MEMORY_REINFORCE, RECENCY_DECAY,
 )
 
 
@@ -304,97 +302,4 @@ def test_memory_persists_through_policy():
 
     # Should still have some memory left after only 5 blank steps
     assert np.linalg.norm(state.resource_memory) > 0.0
-    policy.close()
-
-
-def test_entropy_modulated_depletion():
-    """High-entropy environments should drain energy slower than low-entropy."""
-    obs = np.zeros((88, 88, 3), dtype=np.uint8)
-
-    # Low entropy environment (blank obs, entropy ~0)
-    state_low = initial_state()
-    for _ in range(50):
-        state_low = update_state(
-            state_low, obs, action=1,
-            perception_entropy=0.0, perception_change=0.0,
-        )
-
-    # High entropy environment (pass high entropy value)
-    state_high = initial_state()
-    for _ in range(50):
-        state_high = update_state(
-            state_high, obs, action=1,
-            perception_entropy=4.5, perception_change=0.0,
-        )
-
-    # High entropy should have MORE energy remaining
-    assert state_high.energy > state_low.energy
-
-
-def test_entropy_trickle_sustains():
-    """High entropy environment should provide passive energy trickle."""
-    state = initial_state()
-    obs = np.zeros((88, 88, 3), dtype=np.uint8)
-
-    # In a max-entropy environment, trickle partially offsets depletion.
-    # Net drain = DEPLETION_BASE - TRICKLE = 0.005 - 0.002 = 0.003/step
-    # vs zero-entropy drain = DEPLETION_MAX = 0.010/step
-    # After 100 steps: high-ent loses ~0.3, low-ent loses ~1.0
-    for _ in range(100):
-        state = update_state(
-            state, obs, action=1,
-            perception_entropy=5.0, perception_change=0.0,
-        )
-
-    # Should still have energy left (started at 1.0, lost ~0.3)
-    assert state.energy > 0.5
-
-
-def test_cockroach_mode_triggers():
-    """Cockroach mode should activate below threshold."""
-    state = initial_state()
-
-    # Well below threshold: cockroach mode active
-    state = state._replace(energy=0.05)
-    assert is_cockroach_mode(state)
-
-    state = state._replace(energy=0.10)
-    assert is_cockroach_mode(state)
-
-    # At threshold: not in cockroach mode (strictly less than)
-    state = state._replace(energy=COCKROACH_THRESHOLD)
-    assert not is_cockroach_mode(state)
-
-    # Above threshold: not in cockroach mode
-    state = state._replace(energy=0.5)
-    assert not is_cockroach_mode(state)
-
-
-def test_cockroach_mode_no_random_exploration():
-    """In cockroach mode, agent should never take random actions."""
-    policy = DigiSoupPolicy(seed=42)
-    state = policy.initial_state()
-
-    # Force energy below cockroach threshold
-    state = state._replace(energy=0.1)
-    assert is_cockroach_mode(state)
-
-    # Run 50 steps with blank observations — all actions should be
-    # deterministic resource-seeking (forward/movement), never noop or interact
-    blank_obs = {"RGB": np.zeros((88, 88, 3), dtype=np.uint8)}
-    actions = []
-    for _ in range(50):
-        timestep = dm_env.TimeStep(
-            step_type=dm_env.StepType.MID,
-            reward=0.0,
-            discount=1.0,
-            observation=blank_obs,
-        )
-        action, state = policy.step(timestep, state)
-        actions.append(action)
-        # Keep energy low
-        state = state._replace(energy=0.1)
-
-    # Should never interact (7) in cockroach mode — pure survival
-    assert 7 not in actions
     policy.close()
