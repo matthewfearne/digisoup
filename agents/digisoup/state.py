@@ -7,12 +7,6 @@ Ported from DigiSoup's biological model:
 - Interaction history: rolling window
 - Entropy state: running estimate of local environmental entropy
 - Spatial memory: decaying resource direction memory (slime mold path reinforcement)
-- Stress signal: running estimate of environmental chaos (honey badger anti-fragility)
-
-v7 adds anti-fragility mode (honey badger threat reversal):
-Tracks environmental stress (EMA of change). When stressed, the agent becomes
-bolder — lower cooperation threshold, bias toward interaction in chaos. The honey
-badger doesn't flee from threats; it charges. Anti-fragile: benefits from disorder.
 
 NO reward optimization. State updates use only entropy signals.
 """
@@ -52,10 +46,6 @@ MEMORY_REINFORCE = 0.3             # how strongly new resource sighting updates 
 MEMORY_DECAY = 0.05                # per-step decay of resource direction memory
 RECENCY_DECAY = 0.02               # per-step decay of resource recency signal
 
-# Stress tracking (honey badger anti-fragility)
-STRESS_SMOOTHING = 0.15            # EMA factor for stress signal (tracks change rate)
-ANTIFRAGILE_THRESHOLD = 0.4        # stress above this triggers anti-fragile behavior
-
 
 # ---------------------------------------------------------------------------
 # State
@@ -74,7 +64,6 @@ class DigiSoupState(NamedTuple):
     has_prev_obs: bool                # whether prev_obs is valid
     resource_memory: np.ndarray      # decaying direction toward resources (dy, dx)
     resource_recency: float          # [0,1] how recently resources were seen
-    stress: float                    # EMA of environmental change (honey badger)
 
 
 def initial_state() -> DigiSoupState:
@@ -91,7 +80,6 @@ def initial_state() -> DigiSoupState:
         has_prev_obs=False,
         resource_memory=np.zeros(2),
         resource_recency=0.0,
-        stress=0.0,
     )
 
 
@@ -169,12 +157,6 @@ def update_state(
     resource_memory = prev_state.resource_memory.copy()
     resource_recency = prev_state.resource_recency
 
-    # Stress signal: EMA of environmental change (honey badger anti-fragility)
-    stress = (
-        (1 - STRESS_SMOOTHING) * prev_state.stress +
-        STRESS_SMOOTHING * perception_change
-    )
-
     if resources_nearby and resource_direction is not None:
         # Reinforce memory toward observed resource direction.
         # Denser patches reinforce more strongly (scale by density, capped at 1).
@@ -198,23 +180,12 @@ def update_state(
         has_prev_obs=True,
         resource_memory=resource_memory,
         resource_recency=resource_recency,
-        stress=stress,
     )
 
 
 # ---------------------------------------------------------------------------
 # Role emergence
 # ---------------------------------------------------------------------------
-
-def is_antifragile(state: DigiSoupState) -> bool:
-    """Check if agent is in anti-fragile mode (honey badger).
-
-    When environmental stress (change rate) exceeds the threshold, the agent
-    becomes bolder — lower cooperation threshold, bias toward interaction.
-    The honey badger charges when threatened. Anti-fragile: disorder is fuel.
-    """
-    return state.stress > ANTIFRAGILE_THRESHOLD
-
 
 def get_phase(state: DigiSoupState) -> str:
     """Derive behavioral phase from step count.

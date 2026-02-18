@@ -1,20 +1,20 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v7 adds anti-fragility mode (honey badger threat reversal):
-When the environment is chaotic (high stress), the agent becomes bolder —
-cooperation threshold drops, chaotic environments trigger interaction instead
-of role-based play. The honey badger charges when threatened.
+v4 adds spatial memory (slime mold path reinforcement):
+The agent remembers where resources were found using a decaying direction
+vector. When no resources are currently visible, it follows the memory
+"scent trail" back toward productive areas. Denser sightings reinforce
+the trail more strongly. Stale memories decay to zero.
 
-v4 added spatial memory (slime mold path reinforcement).
 v3 added temporal phase cycling (jellyfish-inspired oscillation).
 
-Priority rules (modified by phase + memory + anti-fragility):
+Priority rules (modified by phase + memory):
 1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources or follow memory
 3. Exploit phase: seek resources at moderate energy (memory-assisted)
-4. Agents nearby -> cooperation threshold (lowered by anti-fragility)
+4. Agents nearby -> phase-dependent cooperation threshold
 5. Stable environment -> explore gradient (with scan bias in explore phase)
-6. Chaotic environment -> anti-fragile: bias INTERACT, else exploit role
+6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
 
@@ -27,10 +27,7 @@ from __future__ import annotations
 import numpy as np
 
 from .perception import Perception, MAX_ENTROPY
-from .state import (
-    DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
-    is_antifragile,
-)
+from .state import DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +54,6 @@ _MOVE_ACTIONS = [FORWARD, BACKWARD, LEFT, RIGHT, TURN_LEFT, TURN_RIGHT]
 STABLE_THRESHOLD = 0.3    # change below this = "stable" environment
 EXPLOIT_ENERGY_SEEK = 0.7 # in exploit phase, seek resources below this energy
 MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
-
-# Anti-fragility (honey badger)
-ANTIFRAGILE_COOP_DROP = 0.3   # how much to lower cooperation threshold when stressed
-ANTIFRAGILE_INTERACT_PROB = 0.4  # probability of INTERACT in chaos when anti-fragile
 
 
 # ---------------------------------------------------------------------------
@@ -177,13 +170,11 @@ def select_action(
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng)
 
-    # Rule 4: Agents nearby — cooperation threshold.
-    # Base: explore 0.7, exploit 0.3. Anti-fragile: drop threshold when stressed.
-    # Honey badger: chaos makes you MORE willing to engage, not less.
+    # Rule 4: Agents nearby — phase-dependent cooperation threshold.
+    # Explore: only interact if strongly cooperative (threshold 0.7).
+    # Exploit: interact more readily (threshold 0.3).
     if perception.agents_nearby:
         coop_threshold = 0.7 if phase == "explore" else 0.3
-        if is_antifragile(state):
-            coop_threshold = max(0.05, coop_threshold - ANTIFRAGILE_COOP_DROP)
         if state.cooperation_tendency > coop_threshold:
             return interact_action
         else:
@@ -201,9 +192,5 @@ def select_action(
             return _move_toward(state.resource_memory, rng)
         return _move_toward(perception.gradient, rng)
     else:
-        # Chaotic: anti-fragile agents lean into chaos.
-        # Honey badger: when stressed, bias toward INTERACT (engage the chaos).
-        # Otherwise, exploit current role strategy.
-        if is_antifragile(state) and rng.random() < ANTIFRAGILE_INTERACT_PROB:
-            return interact_action
+        # Chaotic: exploit current role strategy.
         return _exploit_role(state, perception, n_actions, rng)
