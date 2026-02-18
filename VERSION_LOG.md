@@ -138,4 +138,43 @@ PD mixed: _1 +7%, _3 +10%, but _4 -20%, _0 -10%.
 
 ---
 
+## v5 -- Adaptive Cooperation Threshold (Vampire Bat Reciprocity) [BRANCHED OFF]
+
+**Agent:** Adds adaptive cooperation threshold based on recent interaction success.
+If interactions have been working (entropy changed), lower the threshold — cooperate
+more readily. If they've been failing, raise it — be reluctant. Uses a rolling window
+of interaction outcomes. Inspired by vampire bat reciprocal altruism.
+
+**Status:** Mixed results. NOT carried forward — v6 branches from v4 instead.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 0.64 | +/- 0.53 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.84 | +/- 0.59 | 10 |
+| clean_up | _0 (3f/4bg) | 226.73 | +/- 40.28 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 73.97 | +/- 17.43 | 10 |
+| clean_up | _3 (3f/4bg) | 48.07 | +/- 11.06 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 154.30 | +/- 119.69 | 10 |
+| clean_up | _8 (6f/1bg) | 15.47 | +/- 2.33 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 15.87 | +/- 5.15 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 6.79 | +/- 1.47 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 2.04 | +/- 0.55 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 8.68 | +/- 1.69 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 12.10 | +/- 3.27 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 8.77 | +/- 2.28 | 10 |
+
+**vs v4 (excluding zeros):** 5 improved, 8 regressed. Net negative.
+Big win: Clean Up _7 +178% (but CI +/- 119.69 — unreliable).
+Clean Up _8 +40%, PD _1 +14%, PD _4 +5%, PD _5 +5%.
+Regressions: Commons _0 -62%, Clean Up _3 -23%, PD _2 -31%, PD _0 -5%.
+Core strength held: Clean Up _0 barely moved (226.73 vs 231.20).
+
+**Decision:** Adaptive cooperation hurts more than it helps. v6 branches from v4.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
