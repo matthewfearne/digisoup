@@ -293,4 +293,47 @@ Commons regressed: _0 -24%, _1 -49% (small absolute numbers: 1.28 vs 1.68).
 
 ---
 
+## v9 -- Resource Conservation (Sustainable Harvesting)
+
+**Agent:** v8 base + one new action rule. When the agent is near dense resources
+(>2% green pixels) AND the environment's entropy is declining (growth_rate < -0.1
+bits = patch being depleted), move AWAY from resources to let them regrow. Survival
+overrides conservation — Rule 2 (energy critical) still fires first.
+
+Perception: adds `growth_rate` scalar (mean entropy change across 4x4 grid).
+Action: Rule 2.5 inserted between energy-seek and exploit-seek.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.58 | +/- 0.62 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 0.52 | +/- 0.59 | 10 |
+| clean_up | _0 (3f/4bg) | 256.70 | +/- 71.85 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 78.77 | +/- 16.48 | 10 |
+| clean_up | _3 (3f/4bg) | 80.50 | +/- 28.26 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 56.75 | +/- 53.70 | 10 |
+| clean_up | _8 (6f/1bg) | 13.45 | +/- 1.77 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 18.32 | +/- 6.57 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 5.79 | +/- 1.44 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 3.72 | +/- 0.81 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 10.36 | +/- 3.46 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 10.33 | +/- 6.74 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 14.50 | +/- 3.57 | 10 |
+
+**vs v8 (excluding zeros):** 7 improved, 6 regressed.
+**Clean Up breakout:** CU_0 **256.70** (new all-time high, +16% vs v8, +11% vs v4, **+50% vs ACB**).
+CU_2 +23%, CU_3 +18%, CU_8 +22% vs v8. Conservation rule lets patches regrow = more apples.
+PD gave back some v8 gains: PD_0 -15%, PD_4 -33%, PD_2 -26% vs v8. Still above v4 on most.
+Commons_0 +23% vs v8 (partial recovery). Commons_1 regressed further.
+
+**vs v4 (excluding zeros):** 9 improved, 4 regressed.
+Best combined result yet: Clean Up stronger than ever, PD still well above v4.
+
+**New all-time high-water mark: CU_0 at 256.70 beats ACB (170.66) by 50%.**
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*

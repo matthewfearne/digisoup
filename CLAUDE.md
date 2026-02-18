@@ -23,7 +23,7 @@
 
 ```bash
 source .venv/bin/activate
-python -m pytest tests/test_agent.py -v           # Run tests (18 passing)
+python -m pytest tests/test_agent.py -v           # Run tests (20 passing)
 python -m evaluation.run --all-targets --episodes 10
 python -m evaluation.run --substrate clean_up --episodes 10
 python -m evaluation.run --scenario prisoners_dilemma_in_the_matrix__arena_0 --episodes 10
@@ -62,10 +62,11 @@ All versions git tagged. See VERSION_LOG.md for full scores.
 | v6 | Entropy-as-energy (cockroach) | Catastrophic regression | `v6-cockroach-persistence` |
 | v7 | Anti-fragility (honey badger) | Worst regression | `v7-honey-badger` |
 | v8 | Thermodynamic sensing (4x4 grid + growth + KL) | PD all 6 up avg +37%, CU held | `v8-thermodynamic-sensing` |
+| v9 | Resource conservation (sustainable harvesting) | CU_0=257 (+50% vs ACB), CU breakout | `v9-resource-conservation` |
 
-**High-water marks:** Clean Up _0: v4 at 231.20 beats ACB (170.66) by 35%. PD: v8 all 6 up avg +37%.
-v5-v7 all modified behavior (cooperation/energy/aggression) and regressed.
-v8 is a pure perception upgrade — sharpens inputs without touching decisions. First gain since v4.
+**High-water mark: v9** — CU_0 at 256.70 beats ACB (170.66) by **50%**. PD still above v4.
+v5-v7 modified behavior (cooperation/energy/aggression) and regressed.
+v8-v9 are perception + perception-driven action upgrades — both improved over v4.
 
 ### Key Insight
 
@@ -85,10 +86,10 @@ agents/digisoup/
   policy.py      # Melting Pot Policy interface (wires perception -> state -> action)
 ```
 
-### Current Agent (v8 = v4 base + thermodynamic perception):
-- **Perception:** 4x4 entropy grid, entropy growth gradient (dS/dt), KL anomaly detection, agent/resource colour detection, change detection
+### Current Agent (v9 = v8 + resource conservation):
+- **Perception:** 4x4 entropy grid, entropy growth gradient (dS/dt), growth rate scalar, KL anomaly detection, agent/resource colour detection, change detection
 - **State:** Energy, cooperation tendency, emergent role, entropy EMA, spatial memory, prev entropy grid
-- **Action:** 6 priority rules: random explore → energy-seek → exploit-seek → cooperate/flee → stable-navigate → chaotic-exploit
+- **Action:** 7 priority rules: random explore → energy-seek → **conservation** → exploit-seek → cooperate/flee → stable-navigate → chaotic-exploit
 - **Phase:** Jellyfish oscillation — 50 steps explore, 50 steps exploit
 - **Memory:** Slime mold path reinforcement — decaying resource direction vector
 
@@ -105,7 +106,7 @@ agents/digisoup/policy.py      # Policy interface implementation
 agents/digisoup/perception.py  # Thermodynamic perception (v8: 4x4 grid + growth + KL)
 agents/digisoup/state.py       # Internal state machine
 agents/digisoup/action.py      # Priority-rule action selection
-tests/test_agent.py            # 18 tests
+tests/test_agent.py            # 20 tests
 evaluation/run.py              # Main evaluation runner
 evaluation/metrics.py          # Metrics and aggregation
 configs/scenarios.py           # Scenario configurations
@@ -117,4 +118,4 @@ VERSION_LOG.md                 # Full score log per version with comparisons
 ## DeepMind Baselines
 
 Raw baseline scores from `https://storage.googleapis.com/dm-meltingpot/meltingpot-results-2.3.0.feather`.
-Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v4: **231.20**.
+Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v9: **256.70** (+50% vs ACB).
