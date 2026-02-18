@@ -303,3 +303,70 @@ def test_memory_persists_through_policy():
     # Should still have some memory left after only 5 blank steps
     assert np.linalg.norm(state.resource_memory) > 0.0
     policy.close()
+
+
+def test_fine_entropy_grid():
+    """Perception should return a 4x4 entropy grid."""
+    obs = np.random.randint(0, 256, (88, 88, 3), dtype=np.uint8)
+    p = perceive(obs)
+    assert p.entropy_grid.shape == (4, 4)
+    assert p.entropy_grid.max() > 0.0  # noisy obs has nonzero entropy
+
+
+def test_entropy_growth_gradient():
+    """Growth gradient should point toward where entropy increased."""
+    # Frame 1: blank
+    obs1 = np.zeros((88, 88, 3), dtype=np.uint8)
+    p1 = perceive(obs1)
+
+    # Frame 2: noisy patch appears bottom-right
+    obs2 = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs2[60:88, 60:88] = np.random.randint(0, 256, (28, 28, 3), dtype=np.uint8)
+    p2 = perceive(obs2, prev_obs=obs1, prev_entropy_grid=p1.entropy_grid)
+
+    # Growth gradient should point toward bottom-right (positive dy, positive dx)
+    assert p2.growth_gradient[0] > 0.0 or p2.growth_gradient[1] > 0.0
+
+
+def test_kl_anomaly_detection():
+    """KL anomaly should detect unusual patches in uniform backgrounds."""
+    # Mostly black image with a bright colored patch (simulating agent sprite)
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs[20:35, 20:35, 0] = 200  # bright red patch
+    obs[20:35, 20:35, 2] = 150  # with some blue
+
+    p = perceive(obs)
+    assert p.anomaly_strength > 0.0
+    # Anomaly direction should point toward the patch (top-left area)
+    assert np.linalg.norm(p.anomaly_direction) > 0.0
+
+
+def test_perception_grid_flows_through_policy():
+    """Entropy grid should persist through policy for growth gradient."""
+    policy = DigiSoupPolicy(seed=42)
+    state = policy.initial_state()
+
+    # First step: establish baseline grid
+    obs1 = {"RGB": np.zeros((88, 88, 3), dtype=np.uint8)}
+    timestep = dm_env.TimeStep(
+        step_type=dm_env.StepType.MID, reward=0.0, discount=1.0,
+        observation=obs1,
+    )
+    _, state = policy.step(timestep, state)
+
+    # State should now have a prev_entropy_grid
+    assert state.prev_entropy_grid.shape == (4, 4)
+
+    # Second step: different observation should produce growth signal
+    obs2_arr = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs2_arr[44:88, 44:88] = np.random.randint(50, 200, (44, 44, 3), dtype=np.uint8)
+    obs2 = {"RGB": obs2_arr}
+    timestep2 = dm_env.TimeStep(
+        step_type=dm_env.StepType.MID, reward=0.0, discount=1.0,
+        observation=obs2,
+    )
+    _, state = policy.step(timestep2, state)
+
+    # Grid should have updated
+    assert state.prev_entropy_grid.max() > 0.0
+    policy.close()

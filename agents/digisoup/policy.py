@@ -51,9 +51,10 @@ class DigiSoupPolicy:
             obs = obs.get("RGB", np.zeros((88, 88, 3), dtype=np.uint8))
         obs = np.asarray(obs, dtype=np.uint8)
 
-        # Perceive: entropy, gradients, agent/resource detection, change
+        # Perceive: entropy, gradients, growth, anomaly, agent/resource, change
         prev_obs = prev_state.prev_obs if prev_state.has_prev_obs else None
-        perception = perceive(obs, prev_obs)
+        prev_grid = prev_state.prev_entropy_grid if prev_state.has_prev_obs else None
+        perception = perceive(obs, prev_obs, prev_grid)
 
         # Select action using perception + internal state
         action = select_action(
@@ -67,6 +68,7 @@ class DigiSoupPolicy:
             resources_nearby=perception.resources_nearby,
             resource_direction=perception.resource_direction,
             resource_density=perception.resource_density,
+            entropy_grid=perception.entropy_grid,
         )
 
         return int(action), new_state

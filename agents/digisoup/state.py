@@ -64,6 +64,7 @@ class DigiSoupState(NamedTuple):
     has_prev_obs: bool                # whether prev_obs is valid
     resource_memory: np.ndarray      # decaying direction toward resources (dy, dx)
     resource_recency: float          # [0,1] how recently resources were seen
+    prev_entropy_grid: np.ndarray   # previous frame's 4x4 entropy grid (for growth)
 
 
 def initial_state() -> DigiSoupState:
@@ -80,6 +81,7 @@ def initial_state() -> DigiSoupState:
         has_prev_obs=False,
         resource_memory=np.zeros(2),
         resource_recency=0.0,
+        prev_entropy_grid=np.zeros((4, 4)),
     )
 
 
@@ -96,6 +98,7 @@ def update_state(
     resources_nearby: bool = False,
     resource_direction: np.ndarray | None = None,
     resource_density: float = 0.0,
+    entropy_grid: np.ndarray | None = None,
 ) -> DigiSoupState:
     """Update internal state after taking an action and receiving observation.
 
@@ -180,6 +183,7 @@ def update_state(
         has_prev_obs=True,
         resource_memory=resource_memory,
         resource_recency=resource_recency,
+        prev_entropy_grid=entropy_grid if entropy_grid is not None else prev_state.prev_entropy_grid,
     )
 
 

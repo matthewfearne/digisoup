@@ -1,19 +1,19 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v4 adds spatial memory (slime mold path reinforcement):
-The agent remembers where resources were found using a decaying direction
-vector. When no resources are currently visible, it follows the memory
-"scent trail" back toward productive areas. Denser sightings reinforce
-the trail more strongly. Stale memories decay to zero.
+v8 upgrades perception with thermodynamic sensing:
+- 4x4 fine-grained entropy gradient (replaces 2x2 quadrants)
+- Entropy growth gradient: follow where entropy is INCREASING (apple regrowth)
+- KL divergence anomaly: find agents in dark environments
 
+v4 added spatial memory (slime mold path reinforcement).
 v3 added temporal phase cycling (jellyfish-inspired oscillation).
 
-Priority rules (modified by phase + memory):
+Priority rules (modified by phase + memory + growth + anomaly):
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources or follow memory
-3. Exploit phase: seek resources at moderate energy (memory-assisted)
-4. Agents nearby -> phase-dependent cooperation threshold
-5. Stable environment -> explore gradient (with scan bias in explore phase)
+2. Energy critically low -> seek resources or follow memory or growth
+3. Exploit phase: seek resources at moderate energy (memory/growth-assisted)
+4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
+5. Stable environment -> follow growth gradient or entropy gradient
 6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
@@ -54,6 +54,9 @@ _MOVE_ACTIONS = [FORWARD, BACKWARD, LEFT, RIGHT, TURN_LEFT, TURN_RIGHT]
 STABLE_THRESHOLD = 0.3    # change below this = "stable" environment
 EXPLOIT_ENERGY_SEEK = 0.7 # in exploit phase, seek resources below this energy
 MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
+
+# KL anomaly detection (agents in dark environments)
+ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +125,11 @@ def _has_memory(state: DigiSoupState) -> bool:
     )
 
 
+def _has_growth(perception: 'Perception') -> bool:
+    """Check if there's a usable entropy growth signal."""
+    return np.linalg.norm(perception.growth_gradient) > 0.05
+
+
 def select_action(
     perception: Perception,
     state: DigiSoupState,
@@ -153,32 +161,44 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Memory-assisted: if no resources visible, follow scent trail.
+    # Cascade: visible resources > memory > growth gradient > entropy gradient.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng)
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng)
+        elif _has_growth(perception):
+            return _move_toward(perception.growth_gradient, rng)
         else:
             return _move_toward(perception.gradient, rng)
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
-    # Memory-assisted: follow trail even when resources not visible.
+    # Growth gradient added as fallback after memory.
     if phase == "exploit" and state.energy < EXPLOIT_ENERGY_SEEK:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng)
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng)
+        elif _has_growth(perception):
+            return _move_toward(perception.growth_gradient, rng)
 
     # Rule 4: Agents nearby — phase-dependent cooperation threshold.
+    # Now also detects agents via KL anomaly in dark environments.
     # Explore: only interact if strongly cooperative (threshold 0.7).
     # Exploit: interact more readily (threshold 0.3).
-    if perception.agents_nearby:
+    agents_detected = perception.agents_nearby
+    agent_dir = perception.agent_direction
+    if not agents_detected and perception.anomaly_strength > ANOMALY_AGENT_THRESHOLD:
+        # KL anomaly detected — likely an agent in a dark arena
+        agents_detected = True
+        agent_dir = perception.anomaly_direction
+
+    if agents_detected:
         coop_threshold = 0.7 if phase == "explore" else 0.3
         if state.cooperation_tendency > coop_threshold:
             return interact_action
         else:
-            return _move_away(perception.agent_direction, rng)
+            return _move_away(agent_dir, rng)
 
     # Rules 5 & 6: Environment stability determines movement strategy.
     if perception.change < STABLE_THRESHOLD:
@@ -190,6 +210,9 @@ def select_action(
         # Memory fallback: if stable and no resources, follow the trail
         if phase == "exploit" and _has_memory(state):
             return _move_toward(state.resource_memory, rng)
+        # Growth gradient: prefer moving toward where entropy is increasing
+        if _has_growth(perception):
+            return _move_toward(perception.growth_gradient, rng)
         return _move_toward(perception.gradient, rng)
     else:
         # Chaotic: exploit current role strategy.
