@@ -4,7 +4,10 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.state import get_role, get_phase, initial_state, PHASE_LENGTH
+from agents.digisoup.state import (
+    get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
+    MEMORY_REINFORCE, RECENCY_DECAY,
+)
 
 
 def test_policy_interface():
@@ -214,4 +217,89 @@ def test_phase_covers_full_episode():
 
     assert "explore" in phases_seen
     assert "exploit" in phases_seen
+    policy.close()
+
+
+def test_resource_memory_reinforcement():
+    """Seeing resources should build spatial memory."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    resource_dir = np.array([0.0, 1.0])  # resources to the right
+
+    # Update with resources visible
+    state = update_state(
+        state, obs, action=1,
+        perception_entropy=1.0, perception_change=0.0,
+        resources_nearby=True, resource_direction=resource_dir,
+        resource_density=0.05,
+    )
+
+    # Memory should point toward resources
+    assert state.resource_recency == 1.0
+    assert state.resource_memory[1] > 0.0  # dx > 0 = rightward
+
+
+def test_resource_memory_decays():
+    """Memory should decay when no resources are seen."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # First: see resources to build memory
+    state = update_state(
+        state, obs, action=1,
+        perception_entropy=1.0, perception_change=0.0,
+        resources_nearby=True, resource_direction=np.array([0.0, 1.0]),
+        resource_density=0.05,
+    )
+    initial_mem_strength = np.linalg.norm(state.resource_memory)
+    initial_recency = state.resource_recency
+
+    # Then: 30 steps with no resources
+    for _ in range(30):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=1.0, perception_change=0.0,
+            resources_nearby=False,
+        )
+
+    # Memory and recency should have decayed
+    assert np.linalg.norm(state.resource_memory) < initial_mem_strength
+    assert state.resource_recency < initial_recency
+
+
+def test_memory_persists_through_policy():
+    """Memory should be maintained through the policy step interface."""
+    policy = DigiSoupPolicy(seed=42)
+    state = policy.initial_state()
+
+    # Feed observations with green resources for 10 steps
+    obs_with_green = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs_with_green[10:30, 60:80, 1] = 200  # Green patch top-right
+
+    for _ in range(10):
+        timestep = dm_env.TimeStep(
+            step_type=dm_env.StepType.MID,
+            reward=0.0,
+            discount=1.0,
+            observation={"RGB": obs_with_green},
+        )
+        _, state = policy.step(timestep, state)
+
+    # Memory should be non-zero (resources were detected)
+    assert state.resource_recency > 0.0
+    assert np.linalg.norm(state.resource_memory) > 0.0
+
+    # Now feed blank observations — memory should decay but not vanish instantly
+    blank_obs = {"RGB": np.zeros((88, 88, 3), dtype=np.uint8)}
+    for _ in range(5):
+        timestep = dm_env.TimeStep(
+            step_type=dm_env.StepType.MID,
+            reward=0.0,
+            discount=1.0,
+            observation=blank_obs,
+        )
+        _, state = policy.step(timestep, state)
+
+    # Should still have some memory left after only 5 blank steps
+    assert np.linalg.norm(state.resource_memory) > 0.0
     policy.close()

@@ -60,10 +60,13 @@ class DigiSoupPolicy:
             perception, prev_state, self._n_actions, self._rng
         )
 
-        # Update internal state (energy, cooperation, entropy estimate)
+        # Update internal state (energy, cooperation, entropy estimate, memory)
         new_state = update_state(
             prev_state, obs, action,
             perception.entropy, perception.change,
+            resources_nearby=perception.resources_nearby,
+            resource_direction=perception.resource_direction,
+            resource_density=perception.resource_density,
         )
 
         return int(action), new_state

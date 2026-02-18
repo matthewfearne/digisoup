@@ -1,13 +1,17 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v3 adds temporal phase cycling (jellyfish-inspired oscillation):
-The agent alternates between EXPLORE and EXPLOIT phases on a fixed
-clock. This creates structured behavior — discover first, then act.
+v4 adds spatial memory (slime mold path reinforcement):
+The agent remembers where resources were found using a decaying direction
+vector. When no resources are currently visible, it follows the memory
+"scent trail" back toward productive areas. Denser sightings reinforce
+the trail more strongly. Stale memories decay to zero.
 
-Priority rules (modified by phase):
+v3 added temporal phase cycling (jellyfish-inspired oscillation).
+
+Priority rules (modified by phase + memory):
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources (always)
-3. Exploit phase: seek resources at moderate energy too
+2. Energy critically low -> seek resources or follow memory
+3. Exploit phase: seek resources at moderate energy (memory-assisted)
 4. Agents nearby -> phase-dependent cooperation threshold
 5. Stable environment -> explore gradient (with scan bias in explore phase)
 6. Chaotic environment -> exploit current role
@@ -49,6 +53,7 @@ _MOVE_ACTIONS = [FORWARD, BACKWARD, LEFT, RIGHT, TURN_LEFT, TURN_RIGHT]
 
 STABLE_THRESHOLD = 0.3    # change below this = "stable" environment
 EXPLOIT_ENERGY_SEEK = 0.7 # in exploit phase, seek resources below this energy
+MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +114,14 @@ def _exploit_role(
 # Main action selection
 # ---------------------------------------------------------------------------
 
+def _has_memory(state: DigiSoupState) -> bool:
+    """Check if the agent has a usable resource memory."""
+    return (
+        state.resource_recency > MEMORY_FOLLOW_RECENCY
+        and np.linalg.norm(state.resource_memory) > 0.01
+    )
+
+
 def select_action(
     perception: Perception,
     state: DigiSoupState,
@@ -118,9 +131,8 @@ def select_action(
     """Choose action using phase-modulated entropy-gradient priority rules.
 
     The agent alternates between explore and exploit phases on a fixed
-    clock. Explore phase: higher exploration, scanning turns, reluctant
-    to interact. Exploit phase: lower exploration, eager to interact
-    and gather resources.
+    clock. Spatial memory (slime mold path reinforcement) biases movement
+    toward remembered resource locations when nothing is currently visible.
     """
     rng = rng or np.random.default_rng()
     interact_action = n_actions - 1
@@ -141,17 +153,22 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
+    # Memory-assisted: if no resources visible, follow scent trail.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng)
+        elif _has_memory(state):
+            return _move_toward(state.resource_memory, rng)
         else:
             return _move_toward(perception.gradient, rng)
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
-    # Don't wait until starving; gather while the getting is good.
+    # Memory-assisted: follow trail even when resources not visible.
     if phase == "exploit" and state.energy < EXPLOIT_ENERGY_SEEK:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng)
+        elif _has_memory(state):
+            return _move_toward(state.resource_memory, rng)
 
     # Rule 4: Agents nearby — phase-dependent cooperation threshold.
     # Explore: only interact if strongly cooperative (threshold 0.7).
@@ -170,6 +187,9 @@ def select_action(
             return TURN_LEFT if rng.random() < 0.5 else TURN_RIGHT
         if phase == "exploit" and perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng)
+        # Memory fallback: if stable and no resources, follow the trail
+        if phase == "exploit" and _has_memory(state):
+            return _move_toward(state.resource_memory, rng)
         return _move_toward(perception.gradient, rng)
     else:
         # Chaotic: exploit current role strategy.

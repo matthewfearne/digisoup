@@ -104,4 +104,38 @@ cooperation with other focal agents), Clean Up _3 -21%, Clean Up _8 -20%.
 
 ---
 
+## v4 -- Spatial Memory (Slime Mold Path Reinforcement)
+
+**Agent:** Adds decaying resource direction memory. When resources are detected,
+their direction is blended into a memory vector (stronger for denser patches).
+When resources aren't visible, the agent follows the memory "scent trail" back
+toward productive areas. Memory decays each step — old trails fade. Inspired by
+slime mold tube reinforcement: strengthen paths that lead to food.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.68 | +/- 0.76 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 2.14 | +/- 0.75 | 10 |
+| clean_up | _0 (3f/4bg) | 231.20 | +/- 44.48 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 75.27 | +/- 32.20 | 10 |
+| clean_up | _3 (3f/4bg) | 62.07 | +/- 19.75 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 55.55 | +/- 44.80 | 10 |
+| clean_up | _8 (6f/1bg) | 11.03 | +/- 2.38 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 16.73 | +/- 6.71 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 5.95 | +/- 1.69 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 2.94 | +/- 0.52 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 9.63 | +/- 2.73 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 11.55 | +/- 3.75 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 8.34 | +/- 2.62 | 10 |
+
+**vs v3 (excluding zeros):** 8 improved, 5 regressed.
+Clean Up dominates: _0 +27% (231.20 — **beats ACB 170.66**), _3 +57%, _2 +20%.
+PD mixed: _1 +7%, _3 +10%, but _4 -20%, _0 -10%.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*

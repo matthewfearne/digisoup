@@ -6,6 +6,7 @@ Ported from DigiSoup's biological model:
 - Role: emerges from action pattern history
 - Interaction history: rolling window
 - Entropy state: running estimate of local environmental entropy
+- Spatial memory: decaying resource direction memory (slime mold path reinforcement)
 
 NO reward optimization. State updates use only entropy signals.
 """
@@ -40,6 +41,11 @@ INTERACT_ACTION = 7                # interact is always last standard action
 # Phase cycling (jellyfish-inspired oscillation)
 PHASE_LENGTH = 50                  # steps per half-cycle (full cycle = 100 steps)
 
+# Spatial memory (slime mold path reinforcement)
+MEMORY_REINFORCE = 0.3             # how strongly new resource sighting updates memory
+MEMORY_DECAY = 0.05                # per-step decay of resource direction memory
+RECENCY_DECAY = 0.02               # per-step decay of resource recency signal
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -56,6 +62,8 @@ class DigiSoupState(NamedTuple):
     interaction_outcomes: tuple       # last N interaction change values
     action_counts: tuple              # 8-tuple: count per action type
     has_prev_obs: bool                # whether prev_obs is valid
+    resource_memory: np.ndarray      # decaying direction toward resources (dy, dx)
+    resource_recency: float          # [0,1] how recently resources were seen
 
 
 def initial_state() -> DigiSoupState:
@@ -70,6 +78,8 @@ def initial_state() -> DigiSoupState:
         interaction_outcomes=(),
         action_counts=(0, 0, 0, 0, 0, 0, 0, 0),
         has_prev_obs=False,
+        resource_memory=np.zeros(2),
+        resource_recency=0.0,
     )
 
 
@@ -83,6 +93,9 @@ def update_state(
     action: int,
     perception_entropy: float,
     perception_change: float,
+    resources_nearby: bool = False,
+    resource_direction: np.ndarray | None = None,
+    resource_density: float = 0.0,
 ) -> DigiSoupState:
     """Update internal state after taking an action and receiving observation.
 
@@ -90,6 +103,11 @@ def update_state(
     INTERACT) restore energy and increase cooperation tendency. Failed
     interactions decrease cooperation tendency. This creates a feedback loop:
     agents in environments where interaction causes change become cooperators.
+
+    Resource memory (slime mold path reinforcement): when resources are seen,
+    their direction is blended into a decaying memory vector. When resources
+    aren't visible, the agent can follow this memory back toward productive
+    areas. Denser resource sightings reinforce more strongly.
     """
     # Entropy estimate: exponential moving average
     entropy_estimate = (
@@ -135,6 +153,21 @@ def update_state(
         counts[action] += 1
     action_counts = tuple(counts)
 
+    # Spatial memory: slime mold path reinforcement
+    resource_memory = prev_state.resource_memory.copy()
+    resource_recency = prev_state.resource_recency
+
+    if resources_nearby and resource_direction is not None:
+        # Reinforce memory toward observed resource direction.
+        # Denser patches reinforce more strongly (scale by density, capped at 1).
+        strength = MEMORY_REINFORCE * min(resource_density * 10.0, 1.0)
+        resource_memory = (1.0 - strength) * resource_memory + strength * resource_direction
+        resource_recency = 1.0
+    else:
+        # Decay memory toward zero — old scent fades
+        resource_memory *= (1.0 - MEMORY_DECAY)
+        resource_recency = max(0.0, resource_recency - RECENCY_DECAY)
+
     return DigiSoupState(
         step_count=prev_state.step_count + 1,
         energy=energy,
@@ -145,6 +178,8 @@ def update_state(
         interaction_outcomes=interaction_outcomes,
         action_counts=action_counts,
         has_prev_obs=True,
+        resource_memory=resource_memory,
+        resource_recency=resource_recency,
     )
 
 

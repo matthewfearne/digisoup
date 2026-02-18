@@ -1,0 +1,23 @@
+{
+  "timestamp": 1771385248.8679485,
+  "label": "v4-quick",
+  "results": [
+    {
+      "n_episodes": 2,
+      "focal_per_capita": {
+        "mean": 167.83333333333331,
+        "std": 22.391714737574,
+        "ci95": 31.666666666666657,
+        "min": 152.0,
+        "max": 183.66666666666666,
+        "all": [
+          152.0,
+          183.66666666666666
+        ]
+      },
+      "mean_steps": 1199.0,
+      "scenario": "clean_up_0",
+      "substrate": "clean_up"
+    }
+  ]
+}
