@@ -38,4 +38,34 @@ mean +/- 95% CI across episodes.
 
 ---
 
+## v2 -- Original DigiSoup (perception + state + action rules)
+
+**Agent:** Original DigiSoup design from spec. Perception (entropy, gradients,
+agent/resource detection, change detection), internal state (energy, cooperation
+tendency, role emergence), 6-rule entropy-gradient action selection.
+
+**vs v1:** PD +31% avg (all 6 up). Clean Up _0/2/3 +36-48%. Clean Up _7 -67%.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | vs v1 |
+|-----------|----------|-----------------|--------|-------|
+| commons_harvest__open | _0 (5f/2bg) | 1.34 | +/- 1.00 | +24% |
+| commons_harvest__open | _1 (5f/2bg) | 1.88 | +/- 1.37 | -28% |
+| clean_up | _0 (3f/4bg) | 143.10 | +/- 57.34 | +48% |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | -- |
+| clean_up | _2 (3f/4bg) | 57.40 | +/- 16.36 | +40% |
+| clean_up | _3 (3f/4bg) | 50.43 | +/- 14.74 | +36% |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | -- |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | -- |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | -- |
+| clean_up | _7 (2f/5bg) | 31.15 | +/- 31.33 | -67% |
+| clean_up | _8 (6f/1bg) | 12.72 | +/- 2.95 | -4% |
+| prisoners_dilemma | _0 (1f/7bg) | 10.64 | +/- 4.63 | +29% |
+| prisoners_dilemma | _1 (7f/1bg) | 8.73 | +/- 3.07 | +38% |
+| prisoners_dilemma | _2 (6f/2bg) | 4.25 | +/- 1.06 | +14% |
+| prisoners_dilemma | _3 (1f/7bg) | 10.15 | +/- 3.44 | +56% |
+| prisoners_dilemma | _4 (1f/7bg) | 11.85 | +/- 4.94 | +26% |
+| prisoners_dilemma | _5 (3f/5bg) | 8.85 | +/- 2.20 | +24% |
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*

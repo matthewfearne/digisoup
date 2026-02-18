@@ -43,7 +43,8 @@ from rich.progress import (
 
 from meltingpot import scenario as mp_scenario
 
-from agents.digisoup.policy import DigiSoupPolicy, AgentState
+from agents.digisoup.policy import DigiSoupPolicy
+from agents.digisoup.state import DigiSoupState
 from configs.scenarios import (
     TARGET_SUBSTRATES,
     get_scenarios_for_substrate,
@@ -78,7 +79,7 @@ def run_episode(
 
     # Create one DigiSoup policy per focal slot
     policies: list[DigiSoupPolicy] = []
-    states: list[AgentState] = []
+    states: list[DigiSoupState] = []
     for i in range(n_focal):
         policy_seed = (seed + i) if seed is not None else (42 + i)
         p = DigiSoupPolicy(seed=policy_seed, n_actions=8)

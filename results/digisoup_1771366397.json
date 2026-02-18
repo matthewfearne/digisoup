@@ -1,0 +1,23 @@
+{
+  "timestamp": 1771366397.726297,
+  "label": "digisoup",
+  "results": [
+    {
+      "n_episodes": 2,
+      "focal_per_capita": {
+        "mean": 14.336772486772487,
+        "std": 0.042276754642370566,
+        "ci95": 0.05978835978836016,
+        "min": 14.306878306878307,
+        "max": 14.366666666666667,
+        "all": [
+          14.366666666666667,
+          14.306878306878307
+        ]
+      },
+      "mean_steps": 1499.0,
+      "scenario": "prisoners_dilemma_in_the_matrix__arena_0",
+      "substrate": "prisoners_dilemma_in_the_matrix__arena"
+    }
+  ]
+}
