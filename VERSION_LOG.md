@@ -177,4 +177,43 @@ Core strength held: Clean Up _0 barely moved (226.73 vs 231.20).
 
 ---
 
+## v6 -- Entropy-as-Energy (Cockroach Persistence) [BRANCHED OFF]
+
+**Agent:** Energy depletion scales inversely with environmental entropy — rich
+environments sustain the agent, barren ones drain faster. High entropy provides a
+small passive energy trickle. Below COCKROACH_THRESHOLD (0.15), the agent enters
+survival mode: no random exploration, no cooperation, pure resource-seeking.
+Inspired by cockroach persistence in hostile environments.
+
+**Status:** Across-the-board regression. NOT carried forward — v7 branches from v4.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.48 | +/- 0.83 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.86 | +/- 0.79 | 10 |
+| clean_up | _0 (3f/4bg) | 113.57 | +/- 27.30 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 53.33 | +/- 15.75 | 10 |
+| clean_up | _3 (3f/4bg) | 26.07 | +/- 8.05 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 9.60 | +/- 13.51 | 10 |
+| clean_up | _8 (6f/1bg) | 8.78 | +/- 3.21 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 9.02 | +/- 3.39 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 2.71 | +/- 1.07 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 1.83 | +/- 0.53 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 7.96 | +/- 2.25 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 12.16 | +/- 4.90 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 5.56 | +/- 1.32 | 10 |
+
+**vs v4 (excluding zeros):** 1 improved, 12 regressed. Catastrophic regression.
+Clean Up _0 halved (113.57 vs 231.20). PD collapsed across the board.
+Entropy-modulated depletion starves agent in low-entropy arenas (PD dark rooms).
+Cockroach mode kills cooperation/exploration when agent needs them most.
+
+**Decision:** Entropy-as-energy is actively harmful. v7 branches from v4.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
