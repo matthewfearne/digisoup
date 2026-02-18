@@ -4,7 +4,7 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.state import get_role
+from agents.digisoup.state import get_role, get_phase, initial_state, PHASE_LENGTH
 
 
 def test_policy_interface():
@@ -168,4 +168,50 @@ def test_role_emergence():
 
     role = get_role(state)
     assert role in ("cooperator", "explorer", "scanner", "generalist")
+    policy.close()
+
+
+def test_phase_cycling():
+    """Phase should alternate between explore and exploit."""
+    state = initial_state()
+
+    # Step 0 = explore
+    assert get_phase(state) == "explore"
+
+    # Step PHASE_LENGTH-1 = still explore
+    state = state._replace(step_count=PHASE_LENGTH - 1)
+    assert get_phase(state) == "explore"
+
+    # Step PHASE_LENGTH = exploit
+    state = state._replace(step_count=PHASE_LENGTH)
+    assert get_phase(state) == "exploit"
+
+    # Step 2*PHASE_LENGTH - 1 = still exploit
+    state = state._replace(step_count=2 * PHASE_LENGTH - 1)
+    assert get_phase(state) == "exploit"
+
+    # Step 2*PHASE_LENGTH = back to explore (new cycle)
+    state = state._replace(step_count=2 * PHASE_LENGTH)
+    assert get_phase(state) == "explore"
+
+
+def test_phase_covers_full_episode():
+    """Agent should cycle through multiple phases during a full run."""
+    policy = DigiSoupPolicy(seed=42)
+    state = policy.initial_state()
+    phases_seen = set()
+
+    for _ in range(200):
+        phases_seen.add(get_phase(state))
+        obs = {"RGB": np.random.randint(0, 256, (88, 88, 3), dtype=np.uint8)}
+        timestep = dm_env.TimeStep(
+            step_type=dm_env.StepType.MID,
+            reward=0.0,
+            discount=1.0,
+            observation=obs,
+        )
+        _, state = policy.step(timestep, state)
+
+    assert "explore" in phases_seen
+    assert "exploit" in phases_seen
     policy.close()

@@ -1,0 +1,23 @@
+{
+  "timestamp": 1771374999.9465678,
+  "label": "v3-quick-test",
+  "results": [
+    {
+      "n_episodes": 2,
+      "focal_per_capita": {
+        "mean": 12.51673377684407,
+        "std": 3.9362731394465773,
+        "ci95": 5.566730859010271,
+        "min": 9.733368347338935,
+        "max": 15.300099206349206,
+        "all": [
+          9.733368347338935,
+          15.300099206349206
+        ]
+      },
+      "mean_steps": 1549.0,
+      "scenario": "prisoners_dilemma_in_the_matrix__arena_0",
+      "substrate": "prisoners_dilemma_in_the_matrix__arena"
+    }
+  ]
+}

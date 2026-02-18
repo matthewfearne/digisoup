@@ -37,6 +37,9 @@ HISTORY_LENGTH = 10                # interaction history window
 
 INTERACT_ACTION = 7                # interact is always last standard action
 
+# Phase cycling (jellyfish-inspired oscillation)
+PHASE_LENGTH = 50                  # steps per half-cycle (full cycle = 100 steps)
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -148,6 +151,20 @@ def update_state(
 # ---------------------------------------------------------------------------
 # Role emergence
 # ---------------------------------------------------------------------------
+
+def get_phase(state: DigiSoupState) -> str:
+    """Derive behavioral phase from step count.
+
+    Alternates between 'explore' (discover environment, scan, move) and
+    'exploit' (interact, gather, use role) every PHASE_LENGTH steps.
+
+    Jellyfish-inspired oscillation: rhythm creates structured behavior
+    from a simple clock, so the agent discovers first, then acts on
+    what it found, rather than trying to do everything at once.
+    """
+    cycle_pos = state.step_count % (2 * PHASE_LENGTH)
+    return "explore" if cycle_pos < PHASE_LENGTH else "exploit"
+
 
 def get_role(state: DigiSoupState) -> str:
     """Derive emergent role from action pattern history.

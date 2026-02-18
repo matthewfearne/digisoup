@@ -38,33 +38,69 @@ mean +/- 95% CI across episodes.
 
 ---
 
-## v2 -- Original DigiSoup (perception + state + action rules)
+## v2 -- DigiSoup Original
 
-**Agent:** Original DigiSoup design from spec. Perception (entropy, gradients,
-agent/resource detection, change detection), internal state (energy, cooperation
-tendency, role emergence), 6-rule entropy-gradient action selection.
+**Agent:** Full DigiSoup entropy-gradient design. Perception (entropy, gradients,
+agent/resource detection, change detection) -> internal state (energy, cooperation
+tendency, emergent role) -> priority-rule action selection. No reward optimization.
 
-**vs v1:** PD +31% avg (all 6 up). Clean Up _0/2/3 +36-48%. Clean Up _7 -67%.
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.34 | +/- 1.00 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.88 | +/- 1.37 | 10 |
+| clean_up | _0 (3f/4bg) | 143.10 | +/- 57.34 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 57.40 | +/- 16.36 | 10 |
+| clean_up | _3 (3f/4bg) | 50.43 | +/- 14.74 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 31.15 | +/- 31.33 | 10 |
+| clean_up | _8 (6f/1bg) | 12.72 | +/- 2.95 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 10.64 | +/- 4.63 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 8.73 | +/- 3.07 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 4.25 | +/- 1.06 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 10.15 | +/- 3.44 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 11.85 | +/- 4.94 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 8.85 | +/- 2.20 | 10 |
 
-| Substrate | Scenario | Focal Per-Capita | 95% CI | vs v1 |
-|-----------|----------|-----------------|--------|-------|
-| commons_harvest__open | _0 (5f/2bg) | 1.34 | +/- 1.00 | +24% |
-| commons_harvest__open | _1 (5f/2bg) | 1.88 | +/- 1.37 | -28% |
-| clean_up | _0 (3f/4bg) | 143.10 | +/- 57.34 | +48% |
-| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | -- |
-| clean_up | _2 (3f/4bg) | 57.40 | +/- 16.36 | +40% |
-| clean_up | _3 (3f/4bg) | 50.43 | +/- 14.74 | +36% |
-| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | -- |
-| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | -- |
-| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | -- |
-| clean_up | _7 (2f/5bg) | 31.15 | +/- 31.33 | -67% |
-| clean_up | _8 (6f/1bg) | 12.72 | +/- 2.95 | -4% |
-| prisoners_dilemma | _0 (1f/7bg) | 10.64 | +/- 4.63 | +29% |
-| prisoners_dilemma | _1 (7f/1bg) | 8.73 | +/- 3.07 | +38% |
-| prisoners_dilemma | _2 (6f/2bg) | 4.25 | +/- 1.06 | +14% |
-| prisoners_dilemma | _3 (1f/7bg) | 10.15 | +/- 3.44 | +56% |
-| prisoners_dilemma | _4 (1f/7bg) | 11.85 | +/- 4.94 | +26% |
-| prisoners_dilemma | _5 (3f/5bg) | 8.85 | +/- 2.20 | +24% |
+**vs v1:** PD all 6 up (avg +31%). Clean Up _0 +48%, _2 +40%, _3 +36%.
+Clean Up _7 regressed -67% (high variance). Commons Harvest mixed.
+
+---
+
+## v3 -- Phase Cycling (Jellyfish Oscillation)
+
+**Agent:** Adds temporal phase cycling — alternates EXPLORE and EXPLOIT every 50
+steps. Explore phase: higher random exploration, biased toward movement/scanning,
+reluctant to interact (coop threshold 0.7). Exploit phase: focused, eager to
+interact (coop threshold 0.3), seeks resources at moderate energy. Inspired by
+jellyfish swim-pulse oscillation: discover first, then act.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.90 | +/- 0.64 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.92 | +/- 0.66 | 10 |
+| clean_up | _0 (3f/4bg) | 181.97 | +/- 59.97 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 62.57 | +/- 21.82 | 10 |
+| clean_up | _3 (3f/4bg) | 39.63 | +/- 19.42 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 53.70 | +/- 39.60 | 10 |
+| clean_up | _8 (6f/1bg) | 10.22 | +/- 2.20 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 18.53 | +/- 6.11 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 5.58 | +/- 1.58 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 3.06 | +/- 0.74 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 8.76 | +/- 2.67 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 14.40 | +/- 5.10 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 9.17 | +/- 2.23 | 10 |
+
+**vs v2 (excluding zeros):** 8 improved, 5 regressed.
+Big wins: PD _0 +74%, Clean Up _7 +72%, Commons _0 +42%, Clean Up _0 +27%.
+Regressions: PD _1 -36%, PD _2 -28% (majority-focal — explore phase hurts
+cooperation with other focal agents), Clean Up _3 -21%, Clean Up _8 -20%.
 
 ---
 
