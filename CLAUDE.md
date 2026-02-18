@@ -61,11 +61,11 @@ All versions git tagged. See VERSION_LOG.md for full scores.
 | v5 | Adaptive coop (vampire bat) | Mixed, net negative | `v5-adaptive-coop` |
 | v6 | Entropy-as-energy (cockroach) | Catastrophic regression | `v6-cockroach-persistence` |
 | v7 | Anti-fragility (honey badger) | Worst regression | `v7-honey-badger` |
-| v8 | Thermodynamic sensing (4x4 grid + growth + KL) | **Pending eval** | `v8-thermodynamic-sensing` |
+| v8 | Thermodynamic sensing (4x4 grid + growth + KL) | PD all 6 up avg +37%, CU held | `v8-thermodynamic-sensing` |
 
-**High-water mark: v4** — Clean Up _0 at 231.20 beats DeepMind's ACB (170.66) by 35%.
+**High-water marks:** Clean Up _0: v4 at 231.20 beats ACB (170.66) by 35%. PD: v8 all 6 up avg +37%.
 v5-v7 all modified behavior (cooperation/energy/aggression) and regressed.
-v8 is a pure perception upgrade — sharpens inputs without touching decisions.
+v8 is a pure perception upgrade — sharpens inputs without touching decisions. First gain since v4.
 
 ### Key Insight
 

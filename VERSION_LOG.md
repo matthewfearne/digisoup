@@ -254,4 +254,43 @@ Aggressive interaction in chaos disrupts cooperative dynamics that drive Clean U
 
 ---
 
+## v8 -- Thermodynamic Sensing (4x4 Grid + Growth Gradient + KL Anomaly)
+
+**Agent:** Pure perception upgrade on v4 base. Three new sensing channels:
+1. **4x4 fine entropy grid** — replaces 2x2 quadrants for sharper spatial awareness
+2. **Entropy growth gradient** — direction toward where entropy is INCREASING (dS/dt), tracks apple regrowth and activity hotspots
+3. **KL divergence anomaly** — detects agents as statistical anomalies against uniform backgrounds (crucial for dark PD arenas)
+
+Decision logic unchanged from v4. Only inputs sharpened.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.28 | +/- 0.74 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.10 | +/- 0.68 | 10 |
+| clean_up | _0 (3f/4bg) | 221.87 | +/- 53.86 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 64.20 | +/- 24.77 | 10 |
+| clean_up | _3 (3f/4bg) | 68.27 | +/- 23.47 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 63.40 | +/- 45.74 | 10 |
+| clean_up | _8 (6f/1bg) | 10.98 | +/- 2.69 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 21.64 | +/- 7.65 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 6.23 | +/- 1.74 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 5.01 | +/- 1.45 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 10.78 | +/- 2.58 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 15.41 | +/- 5.04 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 14.35 | +/- 5.82 | 10 |
+
+**vs v4 (excluding zeros):** 8 improved, 4 regressed, 1 flat.
+**PD: ALL 6 scenarios improved (avg +37%).** PD_2 +70%, PD_5 +72%, PD_4 +33%, PD_0 +29%.
+KL anomaly detection finds agents in dark PD arenas — the biggest single improvement since v2.
+Clean Up held: _0 -4% (within CI), _3 +10%, _7 +14%. _2 -15%.
+Commons regressed: _0 -24%, _1 -49% (small absolute numbers: 1.28 vs 1.68).
+
+**New high-water mark for PD.** First version since v4 to improve without destroying Clean Up.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
