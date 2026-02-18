@@ -216,4 +216,42 @@ Cockroach mode kills cooperation/exploration when agent needs them most.
 
 ---
 
+## v7 -- Anti-Fragility Mode (Honey Badger Threat Reversal) [BRANCHED OFF]
+
+**Agent:** Tracks environmental stress (EMA of change rate). When stressed, the agent
+becomes bolder — cooperation threshold drops by 0.3, chaotic environments trigger
+40% chance of INTERACT instead of role-based play. Honey badger: charges when
+threatened. Anti-fragile: disorder is fuel.
+
+**Status:** Worst regression yet. NOT carried forward — v4 remains best.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.60 | +/- 1.08 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.50 | +/- 0.70 | 10 |
+| clean_up | _0 (3f/4bg) | 77.30 | +/- 39.47 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 33.13 | +/- 11.49 | 10 |
+| clean_up | _3 (3f/4bg) | 22.57 | +/- 16.57 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 29.50 | +/- 28.67 | 10 |
+| clean_up | _8 (6f/1bg) | 5.93 | +/- 2.51 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 12.43 | +/- 4.35 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 5.67 | +/- 1.40 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 3.23 | +/- 1.15 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 6.49 | +/- 2.62 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 15.79 | +/- 6.12 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 9.12 | +/- 2.29 | 10 |
+
+**vs v4 (excluding zeros):** 3 improved, 10 regressed. Worst version yet.
+Clean Up _0 cratered to 77.30 (-67%). All Clean Up scenarios regressed hard.
+PD _4 +37%, PD _2 +10%, PD _5 +9% — minor PD gains don't offset Clean Up losses.
+Aggressive interaction in chaos disrupts cooperative dynamics that drive Clean Up.
+
+**Decision:** Anti-fragility is destructive. v4 remains the high-water mark.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*

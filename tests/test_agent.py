@@ -6,7 +6,8 @@ from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
-    MEMORY_REINFORCE, RECENCY_DECAY,
+    MEMORY_REINFORCE, RECENCY_DECAY, is_antifragile, ANTIFRAGILE_THRESHOLD,
+    STRESS_SMOOTHING,
 )
 
 
@@ -302,4 +303,65 @@ def test_memory_persists_through_policy():
 
     # Should still have some memory left after only 5 blank steps
     assert np.linalg.norm(state.resource_memory) > 0.0
+    policy.close()
+
+
+def test_stress_tracks_change():
+    """Stress should rise with high change and fall with low change."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Feed high change — stress should rise
+    for _ in range(20):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=3.0, perception_change=2.0,
+        )
+    high_stress = state.stress
+    assert high_stress > 0.0
+
+    # Feed zero change — stress should fall
+    for _ in range(20):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=3.0, perception_change=0.0,
+        )
+    assert state.stress < high_stress
+
+
+def test_antifragile_triggers():
+    """Anti-fragile mode should activate when stress exceeds threshold."""
+    state = initial_state()
+    assert not is_antifragile(state)  # starts calm
+
+    # Below threshold
+    state = state._replace(stress=ANTIFRAGILE_THRESHOLD - 0.01)
+    assert not is_antifragile(state)
+
+    # Above threshold
+    state = state._replace(stress=ANTIFRAGILE_THRESHOLD + 0.01)
+    assert is_antifragile(state)
+
+
+def test_antifragile_through_policy():
+    """Stress should accumulate through the policy step interface."""
+    policy = DigiSoupPolicy(seed=42)
+    state = policy.initial_state()
+
+    # Feed rapidly changing observations to build stress
+    for i in range(30):
+        obs_arr = np.zeros((88, 88, 3), dtype=np.uint8)
+        # Alternate between bright and dark to create high change
+        if i % 2 == 0:
+            obs_arr[10:70, 10:70] = 200
+        timestep = dm_env.TimeStep(
+            step_type=dm_env.StepType.MID,
+            reward=0.0,
+            discount=1.0,
+            observation={"RGB": obs_arr},
+        )
+        _, state = policy.step(timestep, state)
+
+    # Stress should have accumulated from the alternating observations
+    assert state.stress > 0.0
     policy.close()
