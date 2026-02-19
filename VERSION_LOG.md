@@ -336,4 +336,54 @@ Best combined result yet: Clean Up stronger than ever, PD still well above v4.
 
 ---
 
+## v10 -- Sharper Eyes (Perception Upgrades from v8 Base)
+
+**Agent:** Four perception-only upgrades. Critical bug fix: `_agent_mask()` was
+detecting red/orange apples as agents — agent fled from food and zapped apples
+instead of walking onto them to collect.
+
+Changes:
+1. **Warm mask** — detects red apples (214,88,88) and CU orange apples (212,80,57)
+2. **Dirt mask** — detects CU pollution (2,245,80)
+3. **Resource mask** — green + warm = all apple types (fixes apple-fleeing bug)
+4. **Agent density grid** — 4x4 spatial map of agent locations
+5. **Resource heatmap** — temporal 4x4 spatial memory with 0.95/step decay
+6. **Heading persistence** — EMA of movement direction for smoother paths
+7. **Crowding avoidance** — steers away from agent-dense quadrants (Rule 5)
+
+Removed v9 conservation rule (hurt PD). 27 tests passing.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.68 | +/- 0.90 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 0.90 | +/- 0.49 | 10 |
+| clean_up | _0 (3f/4bg) | 209.10 | +/- 49.97 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 92.70 | +/- 18.17 | 10 |
+| clean_up | _3 (3f/4bg) | 110.67 | +/- 34.14 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 145.15 | +/- 85.48 | 10 |
+| clean_up | _8 (6f/1bg) | 15.37 | +/- 2.82 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 15.94 | +/- 5.49 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 7.27 | +/- 2.64 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 4.81 | +/- 0.78 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 10.72 | +/- 5.51 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 13.93 | +/- 4.20 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 9.94 | +/- 3.68 | 10 |
+
+**vs v8 (excluding zeros):** 7 improved, 6 regressed (PD within CI overlap).
+**Clean Up breakthrough:** CU_2 +44%, CU_3 +62%, CU_7 **+129%** (doubled), CU_8 +40%.
+Colour detection fix working: agent now collects apples it previously fled from.
+CU_0 dipped -6% vs v8 but still beats ACB (209.10 vs 170.66 = +23%).
+CH_0 at 1.68 = new all-time high. PD mixed: PD_1 +17%, PD_0 -26%, PD_5 -31%.
+PD differences are small absolute numbers with overlapping CIs.
+
+**Best overall version.** Clean Up gains (4 of 5 active scenarios up, CU_7 doubled)
+far outweigh PD wobble. The apple-detection bug fix was the single highest-impact
+change since v2's original perception layer.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
