@@ -12,7 +12,7 @@ Priority rules:
 2.5. River cleaning — AT river (>15% water) always clean; approaching only if no food
 2.7. Proactive cleaning — environment depleting + no food visible -> approach river
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/hive)
-4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
+4. Agents nearby -> symbiosis: near river=join cleaning, crowded=complement, else=cooperate/flee
 5. Stable environment -> sand flee / grass attract / avoid crowds / heatmap / growth / hive
 6. Chaotic environment -> exploit current role
 
@@ -282,23 +282,36 @@ def select_action(
         elif hive_ego is not None:
             return _move_toward(hive_ego, rng, heading)
 
-    # Rule 4: Agents nearby — phase-dependent cooperation threshold.
-    # Now also detects agents via KL anomaly in dark environments.
-    # Explore: only interact if strongly cooperative (threshold 0.7).
-    # Exploit: interact more readily (threshold 0.3).
+    # Rule 4: Agents nearby — context-aware symbiosis.
+    # Instead of always zapping or fleeing, respond based on environment:
+    # - Near river + agents → join cleaning crew (CU symbiosis)
+    # - Crowded orchard + river visible → complement: go clean instead of competing
+    # - No river context → phase-dependent cooperate/flee (PD/CH behavior)
+    # Note: fireZap PUNISHES other agents (freezes them). In CU this hurts
+    # everyone — frozen bots can't clean. Only zap when no river context.
     agents_detected = perception.agents_nearby
     agent_dir = perception.agent_direction
     if not agents_detected and perception.anomaly_strength > ANOMALY_AGENT_THRESHOLD:
-        # KL anomaly detected — likely an agent in a dark arena
         agents_detected = True
         agent_dir = perception.anomaly_direction
 
     if agents_detected:
-        coop_threshold = 0.7 if phase == "explore" else 0.3
-        if state.cooperation_tendency > coop_threshold:
-            return interact_action
+        if perception.dirt_nearby and not_in_sand:
+            # Near river with other agents → join cleaning effort
+            if perception.dirt_density > DIRT_CLOSE_DENSITY:
+                return clean_action  # clean alongside others
+            return _move_toward(perception.dirt_direction, rng, heading)
+        elif (perception.dirt_nearby
+              and perception.agent_grid.max() > CROWDING_THRESHOLD):
+            # Crowded area, river visible at distance → go clean (complement)
+            return _move_toward(perception.dirt_direction, rng, heading)
         else:
-            return _move_away(agent_dir, rng, heading)
+            # No river context → original cooperate/flee for PD/CH
+            coop_threshold = 0.7 if phase == "explore" else 0.3
+            if state.cooperation_tendency > coop_threshold:
+                return interact_action
+            else:
+                return _move_away(agent_dir, rng, heading)
 
     # Rules 5 & 6: Environment stability determines movement strategy.
     if perception.change < STABLE_THRESHOLD:
