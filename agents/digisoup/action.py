@@ -1,19 +1,18 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v12 "Echo Explorer":
-- Starvation exploration: when no resources for 50+ steps AND memory/heatmap
-  depleted, boost random exploration to 50%. Gets agent to the river in barren
-  Clean Up scenarios (CU_1/4/5/6 zero-score fix).
-- Echo feedback: successful INTERACT on dirt raises cooperation_tendency (already
-  in state machine). Now Rule 2.5 also fires when cooperation is high (>0.6)
-  even if resources are visible. Committed cleaners keep cleaning.
+v11 "Squid Custodian":
+- Cleaning rule: when dirt/pollution detected and no resources visible, approach
+  dirt and INTERACT to clean it. Fixes zero-score Clean Up scenarios where
+  background bots wait for focal agents to clean first (reciprocator deadlock).
+- Also inserted into energy-low cascade: starving + no food + dirt = clean.
 
-v11 base: cleaning rule. v10: colour fix, heatmap, heading. v8: 4x4 grid.
+v10 base: colour detection fix, resource heatmap, heading persistence,
+crowding avoidance. v8: 4x4 entropy grid, growth gradient, KL anomaly.
 
 Priority rules:
-1. Random exploration — phase-modulated, with starvation override
+1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth
-2.5. Dirt nearby + (no resources OR high cooperation) -> clean
+2.5. Dirt nearby + no resources -> clean (approach + INTERACT)
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth-assisted)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
 5. Stable environment -> avoid crowds, follow growth or entropy gradient
@@ -33,7 +32,6 @@ from .perception import Perception, MAX_ENTROPY, _grid_gradient
 from .state import (
     DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
     HEATMAP_THRESHOLD, HEADING_BLEND, HEADING_MIN_NORM,
-    STARVATION_THRESHOLD,
 )
 
 
@@ -70,12 +68,6 @@ CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowdin
 
 # Dirt cleaning (Clean Up substrate: pollution blocks apple growth)
 DIRT_CLOSE_DENSITY = 0.01     # dirt density above this = close enough to INTERACT
-
-# Starvation exploration (desperate wandering when all resource signals depleted)
-STARVATION_EXPLORE_PROB = 0.50    # 50% random moves when starving
-
-# Echo cleaning (INTERACT on dirt → coop rises → commit to cleaning)
-ECHO_CLEANING_THRESHOLD = 0.6    # cooperation above this = committed cleaner
 
 
 # ---------------------------------------------------------------------------
@@ -188,23 +180,14 @@ def select_action(
 
     # Rule 1: Random exploration — phase modulates probability.
     # Explore phase: cast a wider net. Exploit phase: stay focused.
-    # Starvation override: when no resources for many steps AND all memory
-    # depleted, dramatically boost exploration to escape barren areas.
     entropy_ratio = min(perception.entropy / MAX_ENTROPY, 1.0)
-    is_starving = (
-        state.starvation_steps > STARVATION_THRESHOLD
-        and not _has_memory(state)
-        and not _has_heatmap(state)
-    )
-    if is_starving:
-        explore_prob = STARVATION_EXPLORE_PROB
-    elif phase == "explore":
+    if phase == "explore":
         explore_prob = 0.10 + 0.20 * entropy_ratio
     else:
         explore_prob = 0.02 + 0.08 * entropy_ratio
 
     if rng.random() < explore_prob:
-        if phase == "explore" or is_starving:
+        if phase == "explore":
             # Bias random toward movement and scanning (not interact/noop)
             return int(rng.choice(_MOVE_ACTIONS))
         return int(rng.integers(0, n_actions))
@@ -231,14 +214,9 @@ def select_action(
     # Rule 2.5: Dirt cleaning — approach pollution and INTERACT to clean.
     # In Clean Up, apple growth drops to ZERO when river pollution exceeds 40%.
     # If we see dirt but no resources, apples have likely stopped growing.
-    # Echo feedback: when INTERACT on dirt causes change, cooperation rises
-    # (already in state machine). High-cooperation agents keep cleaning even
-    # when some food appears — committed cleaners sustain apple regrowth.
-    should_clean = perception.dirt_nearby and (
-        not perception.resources_nearby
-        or state.cooperation_tendency > ECHO_CLEANING_THRESHOLD
-    )
-    if should_clean:
+    # Clean the river to restart apple growth. Pure perception-driven: see dirt,
+    # no food, clean. When apples regrow, resources_nearby triggers and we eat.
+    if perception.dirt_nearby and not perception.resources_nearby:
         if perception.dirt_density > DIRT_CLOSE_DENSITY:
             return interact_action  # close enough — fire cleaning beam
         return _move_toward(perception.dirt_direction, rng, heading)  # approach

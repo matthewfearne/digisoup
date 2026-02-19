@@ -4,13 +4,10 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.action import (
-    select_action, CROWDING_THRESHOLD, DIRT_CLOSE_DENSITY,
-    STARVATION_EXPLORE_PROB, ECHO_CLEANING_THRESHOLD,
-)
+from agents.digisoup.action import select_action, CROWDING_THRESHOLD, DIRT_CLOSE_DENSITY
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
-    MEMORY_REINFORCE, RECENCY_DECAY, STARVATION_THRESHOLD,
+    MEMORY_REINFORCE, RECENCY_DECAY,
 )
 
 
@@ -617,122 +614,3 @@ def test_cleaning_rule_skipped_when_resources_available():
     # Should NOT be mostly INTERACT — should pursue resources instead
     interact_count = sum(1 for a in actions if a == INTERACT)
     assert interact_count < 10, f"Agent INTERACT {interact_count}/20 — should eat, not clean"
-
-
-def test_starvation_counter_tracks():
-    """Starvation counter should increment without resources, reset with resources."""
-    state = initial_state()
-    obs = np.zeros((88, 88, 3), dtype=np.uint8)
-
-    # 60 steps with no resources
-    for _ in range(60):
-        state = update_state(
-            state, obs, action=1,
-            perception_entropy=1.0, perception_change=0.0,
-            resources_nearby=False,
-        )
-
-    assert state.starvation_steps == 60
-
-    # See resources — should reset
-    state = update_state(
-        state, obs, action=1,
-        perception_entropy=1.0, perception_change=0.0,
-        resources_nearby=True,
-        resource_direction=np.array([0.0, 1.0]),
-        resource_density=0.05,
-    )
-
-    assert state.starvation_steps == 0
-
-
-def test_starvation_exploration_boosts_movement():
-    """When starving (no resources for many steps), agent should move more randomly."""
-    from agents.digisoup.perception import Perception
-
-    # Barren perception — nothing to see
-    perception = Perception(
-        entropy=0.5,
-        gradient=np.array([0.0, 0.1]),
-        entropy_grid=np.ones((4, 4)) * 0.5,
-        growth_gradient=np.zeros(2),
-        anomaly_direction=np.zeros(2),
-        anomaly_strength=0.0,
-        agents_nearby=False,
-        agent_direction=np.zeros(2),
-        agent_density=0.0,
-        agent_grid=np.zeros((4, 4)),
-        resources_nearby=False,
-        resource_direction=np.zeros(2),
-        resource_density=0.0,
-        dirt_nearby=False,
-        dirt_direction=np.zeros(2),
-        dirt_density=0.0,
-        growth_rate=0.0,
-        change=0.1,
-        change_direction=np.zeros(2),
-    )
-
-    # State: starving for well over threshold, memory and heatmap depleted
-    state = initial_state()
-    state = state._replace(
-        starvation_steps=STARVATION_THRESHOLD + 20,
-        resource_recency=0.0,
-        resource_memory=np.zeros(2),
-        resource_heatmap=np.zeros((4, 4)),
-        energy=0.8,  # not energy-starving, just resource-starving
-    )
-
-    # Run 100 actions — with 50% explore prob, we should get diverse movement
-    rng = np.random.default_rng(42)
-    actions = [select_action(perception, state, 8, rng) for _ in range(100)]
-
-    # Count movement actions (1-6) — should be very high due to starvation explore
-    move_actions = sum(1 for a in actions if 1 <= a <= 6)
-    assert move_actions > 40, f"Only {move_actions}/100 moves — starvation explore not working"
-
-
-def test_echo_cleaning_with_high_cooperation():
-    """High-cooperation agent should clean dirt even when resources are visible."""
-    from agents.digisoup.perception import Perception
-    from agents.digisoup.action import INTERACT
-
-    # Both dirt AND resources visible
-    perception = Perception(
-        entropy=2.0,
-        gradient=np.array([0.0, 1.0]),
-        entropy_grid=np.ones((4, 4)),
-        growth_gradient=np.zeros(2),
-        anomaly_direction=np.zeros(2),
-        anomaly_strength=0.0,
-        agents_nearby=False,
-        agent_direction=np.zeros(2),
-        agent_density=0.0,
-        agent_grid=np.zeros((4, 4)),
-        resources_nearby=True,            # food available
-        resource_direction=np.array([0.0, 1.0]),
-        resource_density=0.05,
-        dirt_nearby=True,                 # dirt also visible
-        dirt_direction=np.array([-1.0, 0.0]),
-        dirt_density=0.05,                # above DIRT_CLOSE_DENSITY
-        growth_rate=0.0,
-        change=0.1,
-        change_direction=np.zeros(2),
-    )
-
-    # High cooperation = committed cleaner (echo feedback from previous INTERACT)
-    state = initial_state()
-    state = state._replace(
-        energy=0.8,
-        cooperation_tendency=0.8,  # above ECHO_CLEANING_THRESHOLD (0.6)
-    )
-
-    rng = np.random.default_rng(42)
-    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
-
-    # Should mostly INTERACT (cleaning) despite food being available
-    interact_count = sum(1 for a in actions if a == INTERACT)
-    assert interact_count > 10, (
-        f"Only {interact_count}/20 INTERACT — echo cleaning not working "
-        f"(coop={state.cooperation_tendency})"
-    )

@@ -56,9 +56,6 @@ HEADING_EMA = 0.8                  # weight of previous heading
 HEADING_BLEND = 0.2                # heading influence on movement direction
 HEADING_MIN_NORM = 0.1             # minimum heading strength to blend
 
-# Starvation exploration (desperate wandering when no resources found)
-STARVATION_THRESHOLD = 50          # steps with no resources before desperation kicks in
-
 
 # ---------------------------------------------------------------------------
 # State
@@ -80,7 +77,6 @@ class DigiSoupState(NamedTuple):
     prev_entropy_grid: np.ndarray   # previous frame's 4x4 entropy grid (for growth)
     resource_heatmap: np.ndarray    # (4,4) temporal spatial memory of resources
     heading: np.ndarray             # (2,) EMA of recent movement direction
-    starvation_steps: int           # consecutive steps with no resources seen
 
 
 def initial_state() -> DigiSoupState:
@@ -100,7 +96,6 @@ def initial_state() -> DigiSoupState:
         prev_entropy_grid=np.zeros((4, 4)),
         resource_heatmap=np.zeros((4, 4)),
         heading=np.zeros(2),
-        starvation_steps=0,
     )
 
 
@@ -201,12 +196,6 @@ def update_state(
             resource_heatmap[gy, gx] + HEATMAP_REINFORCE * strength, 1.0
         )
 
-    # Starvation counter: how long since we last saw resources
-    if resources_nearby:
-        starvation_steps = 0
-    else:
-        starvation_steps = prev_state.starvation_steps + 1
-
     # Heading: EMA of movement direction
     heading = prev_state.heading.copy()
     _ACTION_DIRS = {1: (-1, 0), 2: (1, 0), 3: (0, -1), 4: (0, 1)}
@@ -230,7 +219,6 @@ def update_state(
         prev_entropy_grid=entropy_grid if entropy_grid is not None else prev_state.prev_entropy_grid,
         resource_heatmap=resource_heatmap,
         heading=heading,
-        starvation_steps=starvation_steps,
     )
 
 
