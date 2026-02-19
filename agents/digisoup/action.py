@@ -231,14 +231,16 @@ def select_action(
             return _move_toward(perception.gradient, rng, heading)
 
     # Rule 2.5: River cleaning — critical for Clean Up apple growth.
-    # When AT the river (>15% water in view), ALWAYS clean — even if distant
-    # apples visible. The 88x88 FOV is wide enough to see both river and orchard.
-    # When APPROACHING (>5% water), only approach if no food currently visible.
+    # Must actually be AT the river, not just seeing it from sand (FOV is 11 tiles
+    # wide on a 30-tile map — agents in sand can see river at the edge).
+    # Guard: if sand dominates the view, you're NOT at the river.
     # Apple growth drops to ZERO when river pollution exceeds 40%.
-    if perception.dirt_nearby and perception.dirt_density > DIRT_CLOSE_DENSITY:
-        return clean_action  # at the river — fire cleaning beam, always
+    not_in_sand = not (perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY)
+    if (perception.dirt_nearby and perception.dirt_density > DIRT_CLOSE_DENSITY
+            and not_in_sand):
+        return clean_action  # at the river — fire cleaning beam
     if (perception.dirt_nearby and not perception.resources_nearby
-            and perception.dirt_density > DIRT_APPROACH_DENSITY):
+            and perception.dirt_density > DIRT_APPROACH_DENSITY and not_in_sand):
         return _move_toward(perception.dirt_direction, rng, heading)  # approach river
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
