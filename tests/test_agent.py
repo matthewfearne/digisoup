@@ -435,17 +435,21 @@ def test_warm_mask_excludes_agents():
         assert warm.sum() == 0, f"Agent {i} colour ({r},{g},{b}) falsely matched warm mask"
 
 
-def test_dirt_mask_detects_pollution():
-    """Dirt mask should detect CU pollution colour."""
+def test_dirt_mask_detects_river_water():
+    """Dirt mask should detect CU river water (proxy for cleanable area)."""
     from agents.digisoup.perception import _dirt_mask
 
     obs = np.zeros((88, 88, 3), dtype=np.uint8)
-    obs[30:50, 30:50] = [2, 245, 80]  # CU pollution colour
+    obs[30:50, 30:50] = [35, 133, 168]  # CU river water colour
 
     dirt = _dirt_mask(obs)
-    assert dirt[30:50, 30:50].sum() > 0, "CU pollution not detected"
-    # Background should not be dirt
+    assert dirt[30:50, 30:50].sum() > 0, "CU river water not detected"
+    # Background (black) should not be detected
     assert dirt[0:10, 0:10].sum() == 0, "Background false positive"
+    # Grass (164,189,75) should NOT be detected as river
+    obs2 = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs2[30:50, 30:50] = [164, 189, 75]  # grass colour
+    assert _dirt_mask(obs2)[30:50, 30:50].sum() == 0, "Grass falsely detected as river"
 
 
 def test_agent_grid():
@@ -539,11 +543,11 @@ def test_perception_with_warm_resources():
 
 
 def test_cleaning_rule_fires_on_dirt_no_resources():
-    """Agent should INTERACT or approach dirt when pollution visible but no food."""
+    """Agent should FIRE_CLEAN or approach river when water visible but no food."""
     from agents.digisoup.perception import Perception
-    from agents.digisoup.action import INTERACT
+    from agents.digisoup.action import FIRE_CLEAN
 
-    # Dirt visible, no resources — agent should clean
+    # River water visible, no resources — agent should clean
     perception = Perception(
         entropy=2.0,
         gradient=np.array([0.0, 1.0]),
@@ -558,9 +562,9 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
         resources_nearby=False,          # no food
         resource_direction=np.zeros(2),
         resource_density=0.0,
-        dirt_nearby=True,                # pollution visible
-        dirt_direction=np.array([-1.0, 0.0]),  # dirt ahead
-        dirt_density=0.05,               # above DIRT_CLOSE_DENSITY (0.01)
+        dirt_nearby=True,                # river water visible
+        dirt_direction=np.array([-1.0, 0.0]),  # water ahead
+        dirt_density=0.05,               # above DIRT_CLOSE_DENSITY
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
@@ -570,19 +574,20 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
     state = state._replace(energy=0.8)  # above LOW_ENERGY_THRESHOLD
 
     rng = np.random.default_rng(42)
-    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+    # Use n_actions=9 (Clean Up action space)
+    actions = [select_action(perception, state, 9, rng) for _ in range(20)]
 
-    # Most actions should be INTERACT (cleaning) since dirt_density > threshold
-    interact_count = sum(1 for a in actions if a == INTERACT)
-    assert interact_count > 10, f"Only {interact_count}/20 INTERACT — should clean"
+    # Most actions should be FIRE_CLEAN (action 8) since dirt_density > threshold
+    clean_count = sum(1 for a in actions if a == FIRE_CLEAN)
+    assert clean_count > 10, f"Only {clean_count}/20 FIRE_CLEAN — should clean"
 
 
 def test_cleaning_rule_skipped_when_resources_available():
     """Agent should NOT clean when food is available (eat first)."""
     from agents.digisoup.perception import Perception
-    from agents.digisoup.action import INTERACT
+    from agents.digisoup.action import FIRE_CLEAN
 
-    # Both dirt AND resources visible — should pursue food, not clean
+    # Both river AND resources visible — should pursue food, not clean
     perception = Perception(
         entropy=2.0,
         gradient=np.array([0.0, 1.0]),
@@ -597,7 +602,7 @@ def test_cleaning_rule_skipped_when_resources_available():
         resources_nearby=True,           # food available
         resource_direction=np.array([0.0, 1.0]),
         resource_density=0.05,
-        dirt_nearby=True,                # dirt also visible
+        dirt_nearby=True,                # river also visible
         dirt_direction=np.array([-1.0, 0.0]),
         dirt_density=0.03,
         growth_rate=0.0,
@@ -609,11 +614,11 @@ def test_cleaning_rule_skipped_when_resources_available():
     state = state._replace(energy=0.8)
 
     rng = np.random.default_rng(42)
-    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+    actions = [select_action(perception, state, 9, rng) for _ in range(20)]
 
-    # Should NOT be mostly INTERACT — should pursue resources instead
-    interact_count = sum(1 for a in actions if a == INTERACT)
-    assert interact_count < 10, f"Agent INTERACT {interact_count}/20 — should eat, not clean"
+    # Should NOT be mostly FIRE_CLEAN — should pursue resources instead
+    clean_count = sum(1 for a in actions if a == FIRE_CLEAN)
+    assert clean_count < 10, f"Agent FIRE_CLEAN {clean_count}/20 — should eat, not clean"
 
 
 def test_orientation_tracks_turns():

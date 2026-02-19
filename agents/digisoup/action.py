@@ -36,7 +36,7 @@ from .state import (
 
 
 # ---------------------------------------------------------------------------
-# Action constants (Melting Pot standard 8-action space)
+# Action constants (Melting Pot action space)
 # ---------------------------------------------------------------------------
 
 NOOP = 0
@@ -46,7 +46,8 @@ LEFT = 3
 RIGHT = 4
 TURN_LEFT = 5
 TURN_RIGHT = 6
-INTERACT = 7
+INTERACT = 7      # fireZap (standard 8-action space)
+FIRE_CLEAN = 8    # fireClean (Clean Up 9-action space)
 
 # Movement actions for explore-phase random selection
 _MOVE_ACTIONS = [FORWARD, BACKWARD, LEFT, RIGHT, TURN_LEFT, TURN_RIGHT]
@@ -67,7 +68,7 @@ ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
 CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowding
 
 # Dirt cleaning (Clean Up substrate: pollution blocks apple growth)
-DIRT_CLOSE_DENSITY = 0.01     # dirt density above this = close enough to INTERACT
+DIRT_CLOSE_DENSITY = 0.002    # dirt density above this = close enough to INTERACT
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +178,8 @@ def select_action(
     """
     rng = rng or np.random.default_rng()
     interact_action = n_actions - 1
+    # Clean Up has 9 actions: action 8 = FIRE_CLEAN. Other substrates use 8.
+    clean_action = FIRE_CLEAN if n_actions > 8 else interact_action
     phase = get_phase(state)
     heading = state.heading
 
@@ -202,14 +205,14 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Cascade: visible resources > dirt cleaning > memory > heatmap > growth > entropy.
+    # Cascade: visible resources > river cleaning > memory > heatmap > growth > entropy.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng, heading)
         elif perception.dirt_nearby:
-            # No food but pollution visible — clean to restart apple growth.
+            # No food but river visible — fire cleaning beam to remove pollution.
             if perception.dirt_density > DIRT_CLOSE_DENSITY:
-                return interact_action
+                return clean_action
             return _move_toward(perception.dirt_direction, rng, heading)
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng, heading)
@@ -222,14 +225,14 @@ def select_action(
         else:
             return _move_toward(perception.gradient, rng, heading)
 
-    # Rule 2.5: Dirt cleaning — approach pollution and INTERACT to clean.
+    # Rule 2.5: River cleaning — approach river and FIRE_CLEAN to remove pollution.
     # In Clean Up, apple growth drops to ZERO when river pollution exceeds 40%.
-    # If we see dirt but no resources, apples have likely stopped growing.
-    # Clean the river to restart apple growth. Pure perception-driven: see dirt,
+    # If we see river water but no resources, apples have likely stopped growing.
+    # Clean the river to restart apple growth. Pure perception-driven: see water,
     # no food, clean. When apples regrow, resources_nearby triggers and we eat.
     if perception.dirt_nearby and not perception.resources_nearby:
         if perception.dirt_density > DIRT_CLOSE_DENSITY:
-            return interact_action  # close enough — fire cleaning beam
+            return clean_action  # close enough — fire cleaning beam
         return _move_toward(perception.dirt_direction, rng, heading)  # approach
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.

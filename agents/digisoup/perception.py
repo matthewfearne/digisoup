@@ -274,11 +274,32 @@ def _warm_mask(obs: np.ndarray) -> np.ndarray:
 
 
 def _dirt_mask(obs: np.ndarray) -> np.ndarray:
-    """Detect CU pollution/dirt pixels (bright green with low r,b)."""
+    """Detect river/water pixels as proxy for 'cleanable area'.
+
+    CU pollution is (2,245,80) at 20% alpha over water, making it nearly
+    identical to clean water visually. We detect ALL river water instead —
+    the agent should FIRE_CLEAN when near any river tile. Cleaning clean
+    water is harmless; cleaning dirty water removes pollution.
+
+    River water colors: (27-35, 125-185, 143-175) — teal/cyan with low red.
+    Same as _water_mask — kept in sync for agent_mask exclusion.
+    """
     r = obs[:, :, 0].astype(np.float32)
     g = obs[:, :, 1].astype(np.float32)
     b = obs[:, :, 2].astype(np.float32)
-    return (g > 200) & (r < 50) & (b < 100)
+    return (r < 60) & (g > 100) & (b > 100)
+
+
+def _water_mask(obs: np.ndarray) -> np.ndarray:
+    """Detect river/water pixels (teal/cyan with very low red).
+
+    CU river water is ~(27,150,144) — low r, moderate-high g and b.
+    Previously misdetected as agents due to high saturation (123).
+    """
+    r = obs[:, :, 0].astype(np.float32)
+    g = obs[:, :, 1].astype(np.float32)
+    b = obs[:, :, 2].astype(np.float32)
+    return (r < 60) & (g > 100) & (b > 100)
 
 
 def _resource_mask(obs: np.ndarray) -> np.ndarray:
@@ -287,10 +308,10 @@ def _resource_mask(obs: np.ndarray) -> np.ndarray:
 
 
 def _agent_mask(obs: np.ndarray) -> np.ndarray:
-    """Detect agent-coloured pixels (saturated, non-resource, not too dark).
+    """Detect agent-coloured pixels (saturated, non-resource/water/dirt, not too dark).
 
-    v10 fix: excludes warm-coloured resources (red/orange apples) that were
-    previously misdetected as agents due to high saturation.
+    v15 fix: excludes river water and dirt that were previously misdetected
+    as agents, causing phantom agent sightings near the CU river.
     """
     r = obs[:, :, 0].astype(np.float32)
     g = obs[:, :, 1].astype(np.float32)
@@ -299,8 +320,8 @@ def _agent_mask(obs: np.ndarray) -> np.ndarray:
     min_c = np.minimum(np.minimum(r, g), b)
     saturation = max_c - min_c
 
-    resources = _resource_mask(obs)
-    return (saturation > 50) & (~resources) & (max_c > 80)
+    exclude = _resource_mask(obs) | _water_mask(obs) | _dirt_mask(obs)
+    return (saturation > 50) & (~exclude) & (max_c > 80)
 
 
 def _agent_density_grid(obs: np.ndarray, agent_mask_result: np.ndarray) -> np.ndarray:

@@ -36,7 +36,8 @@ INTERACT_CHANGE_THRESHOLD = 0.3    # change entropy needed for "successful"
 ENTROPY_SMOOTHING = 0.1            # EMA factor for entropy estimate
 HISTORY_LENGTH = 10                # interaction history window
 
-INTERACT_ACTION = 7                # interact is always last standard action
+INTERACT_ACTION = 7                # fireZap (standard 8-action space)
+FIRE_CLEAN_ACTION = 8              # fireClean (Clean Up 9-action space)
 
 # Phase cycling (jellyfish-inspired oscillation)
 PHASE_LENGTH = 50                  # steps per half-cycle (full cycle = 100 steps)
@@ -95,7 +96,7 @@ def initial_state() -> DigiSoupState:
         prev_obs=np.zeros((88, 88, 3), dtype=np.uint8),
         prev_action=0,
         interaction_outcomes=(),
-        action_counts=(0, 0, 0, 0, 0, 0, 0, 0),
+        action_counts=(0, 0, 0, 0, 0, 0, 0, 0, 0),  # 9 slots (includes FIRE_CLEAN)
         has_prev_obs=False,
         resource_memory=np.zeros(2),
         resource_recency=0.0,
@@ -167,8 +168,8 @@ def update_state(
     # Interaction outcomes history
     interaction_outcomes = prev_state.interaction_outcomes
 
-    # Check if previous action was INTERACT and if it had an effect
-    if prev_state.prev_action == INTERACT_ACTION and prev_state.has_prev_obs:
+    # Check if previous action was INTERACT or FIRE_CLEAN and if it had an effect
+    if prev_state.prev_action in (INTERACT_ACTION, FIRE_CLEAN_ACTION) and prev_state.has_prev_obs:
         if perception_change > INTERACT_CHANGE_THRESHOLD:
             # Successful interaction: entropy changed after interacting
             energy += ENERGY_INTERACTION_GAIN
@@ -297,7 +298,8 @@ def get_role(state: DigiSoupState) -> str:
     if total < 10:
         return "generalist"
 
-    interact_frac = counts[INTERACT_ACTION] / total
+    clean_count = counts[FIRE_CLEAN_ACTION] if len(counts) > FIRE_CLEAN_ACTION else 0
+    interact_frac = (counts[INTERACT_ACTION] + clean_count) / total
     move_frac = (counts[1] + counts[2] + counts[3] + counts[4]) / total
     turn_frac = (counts[5] + counts[6]) / total
 

@@ -78,12 +78,16 @@ def run_episode(
     timestep = env.reset()
     n_focal = len(timestep.observation)
 
+    # Detect action space size (Clean Up has 9: action 8 = FIRE_CLEAN)
+    action_spec = env.action_spec()
+    n_actions = action_spec[0].num_values if action_spec else 8
+
     # Create one DigiSoup policy per focal slot
     policies: list[DigiSoupPolicy] = []
     states: list[DigiSoupState] = []
     for i in range(n_focal):
         policy_seed = (seed + i) if seed is not None else (42 + i)
-        p = DigiSoupPolicy(seed=policy_seed, n_actions=8)
+        p = DigiSoupPolicy(seed=policy_seed, n_actions=n_actions)
         policies.append(p)
         states.append(p.initial_state())
 
