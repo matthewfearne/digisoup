@@ -284,11 +284,13 @@ def select_action(
 
     # Rule 4: Agents nearby — context-aware symbiosis.
     # Instead of always zapping or fleeing, respond based on environment:
-    # - Near river + agents → join cleaning crew (CU symbiosis)
-    # - Crowded orchard + river visible → complement: go clean instead of competing
-    # - No river context → phase-dependent cooperate/flee (PD/CH behavior)
-    # Note: fireZap PUNISHES other agents (freezes them). In CU this hurts
-    # everyone — frozen bots can't clean. Only zap when no river context.
+    # - Near river + agents + depleting → join cleaning crew (CU symbiosis)
+    # - Crowded orchard + depleting → complement: go clean instead of competing
+    # - No river context OR environment healthy → cooperate/flee (PD/CH behavior)
+    # Growth-rate gate: only divert to cleaning when environment actually needs it.
+    # If bots are already cleaning fine (growth_rate > 0), just forage normally.
+    # Note: fireZap PUNISHES other agents (freezes them). In CU with river
+    # context, avoid zapping — frozen bots can't clean.
     agents_detected = perception.agents_nearby
     agent_dir = perception.agent_direction
     if not agents_detected and perception.anomaly_strength > ANOMALY_AGENT_THRESHOLD:
@@ -296,15 +298,19 @@ def select_action(
         agent_dir = perception.anomaly_direction
 
     if agents_detected:
-        if perception.dirt_nearby and not_in_sand:
-            # Near river with other agents → join cleaning effort
+        env_depleting = perception.growth_rate <= DEPLETED_GROWTH_THRESHOLD
+        if perception.dirt_nearby and not_in_sand and env_depleting:
+            # Near river + environment dying → join cleaning effort
             if perception.dirt_density > DIRT_CLOSE_DENSITY:
                 return clean_action  # clean alongside others
             return _move_toward(perception.dirt_direction, rng, heading)
-        elif (perception.dirt_nearby
+        elif (perception.dirt_nearby and env_depleting
               and perception.agent_grid.max() > CROWDING_THRESHOLD):
-            # Crowded area, river visible at distance → go clean (complement)
+            # Crowded + depleting + river visible → go clean (complement)
             return _move_toward(perception.dirt_direction, rng, heading)
+        elif perception.dirt_nearby:
+            # River context but environment healthy → don't zap, just avoid crowding
+            return _move_away(agent_dir, rng, heading)
         else:
             # No river context → original cooperate/flee for PD/CH
             coop_threshold = 0.7 if phase == "explore" else 0.3
