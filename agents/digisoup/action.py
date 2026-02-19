@@ -9,7 +9,7 @@ v15 "River Eyes":
 Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
 2. Energy critically low -> seek resources / memory / heatmap / sand flee / grass / growth / hive
-2.5. River cleaning — only when CLOSE to river, no food, substantial water in view
+2.5. River cleaning — AT river (>15% water) always clean; approaching only if no food
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/hive)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
 5. Stable environment -> sand flee / grass attract / avoid crowds / heatmap / growth / hive
@@ -230,13 +230,15 @@ def select_action(
         else:
             return _move_toward(perception.gradient, rng, heading)
 
-    # Rule 2.5: River cleaning — only when CLOSE to river and no food visible.
-    # Requires substantial river in view (>5% to approach, >15% to fire).
-    # In Clean Up, apple growth drops to ZERO when river pollution exceeds 40%.
+    # Rule 2.5: River cleaning — critical for Clean Up apple growth.
+    # When AT the river (>15% water in view), ALWAYS clean — even if distant
+    # apples visible. The 88x88 FOV is wide enough to see both river and orchard.
+    # When APPROACHING (>5% water), only approach if no food currently visible.
+    # Apple growth drops to ZERO when river pollution exceeds 40%.
+    if perception.dirt_nearby and perception.dirt_density > DIRT_CLOSE_DENSITY:
+        return clean_action  # at the river — fire cleaning beam, always
     if (perception.dirt_nearby and not perception.resources_nearby
             and perception.dirt_density > DIRT_APPROACH_DENSITY):
-        if perception.dirt_density > DIRT_CLOSE_DENSITY:
-            return clean_action  # at the river — fire cleaning beam
         return _move_toward(perception.dirt_direction, rng, heading)  # approach river
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
