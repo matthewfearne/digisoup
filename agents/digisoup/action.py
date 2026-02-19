@@ -8,8 +8,9 @@ v15 "River Eyes":
 
 Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources / memory / heatmap / sand flee / grass / growth / hive
+2. Energy critically low -> seek food; if depleted (dS/dt<=0) + no food -> go clean river
 2.5. River cleaning — AT river (>15% water) always clean; approaching only if no food
+2.7. Proactive cleaning — environment depleting + no food visible -> approach river
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/hive)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
 5. Stable environment -> sand flee / grass attract / avoid crowds / heatmap / growth / hive
@@ -74,6 +75,9 @@ GRASS_ATTRACT_DENSITY = 0.02   # grass density above this = move toward orchard
 # River cleaning (Clean Up substrate: pollution blocks apple growth)
 DIRT_APPROACH_DENSITY = 0.05  # need 5% of view to be water before approaching river
 DIRT_CLOSE_DENSITY = 0.15    # need 15% of view to be water before firing FIRE_CLEAN
+
+# Depleted environment — apples not regrowing, river needs cleaning
+DEPLETED_GROWTH_THRESHOLD = 0.0  # growth_rate at or below this = environment depleting
 
 
 # ---------------------------------------------------------------------------
@@ -209,9 +213,15 @@ def select_action(
             return int(rng.choice(_MOVE_ACTIONS))
         return int(rng.integers(0, n_actions))
 
+    # Sand position check — used by multiple rules to prevent false river actions.
+    # FOV is 11 tiles on a 30-tile map; agents in sand can see river at the edge.
+    not_in_sand = not (perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY)
+
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Cascade: visible resources > memory > heatmap > growth > hive > entropy.
-    # When hungry, finding food is #1 — do NOT divert to cleaning.
+    # Cascade: visible food > memory > heatmap > depleted→navigate to river > fallbacks.
+    # If no food found AND environment depleting, HEAD TOWARD the river — apples won't
+    # regrow until pollution is removed. Thermodynamic insight: dS/dt <= 0 = dying.
+    # Navigation toward river allowed from anywhere; only FIRING blocked in sand.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng, heading)
@@ -219,6 +229,12 @@ def select_action(
             return _move_toward(state.resource_memory, rng, heading)
         elif _has_heatmap(state):
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
+        elif (perception.growth_rate <= DEPLETED_GROWTH_THRESHOLD
+              and perception.dirt_nearby):
+            # No food, environment depleting → river polluted → go clean
+            if perception.dirt_density > DIRT_CLOSE_DENSITY and not_in_sand:
+                return clean_action  # at the river — fire beam
+            return _move_toward(perception.dirt_direction, rng, heading)  # walk toward river
         elif perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY:
             return _move_away(perception.sand_direction, rng, heading)
         elif perception.grass_nearby and perception.grass_density > GRASS_ATTRACT_DENSITY:
@@ -231,17 +247,25 @@ def select_action(
             return _move_toward(perception.gradient, rng, heading)
 
     # Rule 2.5: River cleaning — critical for Clean Up apple growth.
-    # Must actually be AT the river, not just seeing it from sand (FOV is 11 tiles
-    # wide on a 30-tile map — agents in sand can see river at the edge).
-    # Guard: if sand dominates the view, you're NOT at the river.
+    # AT the river (>15% water, not in sand): always fire cleaning beam.
+    # Approaching (>5% water, no food visible): walk toward river from anywhere.
     # Apple growth drops to ZERO when river pollution exceeds 40%.
-    not_in_sand = not (perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY)
     if (perception.dirt_nearby and perception.dirt_density > DIRT_CLOSE_DENSITY
             and not_in_sand):
         return clean_action  # at the river — fire cleaning beam
     if (perception.dirt_nearby and not perception.resources_nearby
-            and perception.dirt_density > DIRT_APPROACH_DENSITY and not_in_sand):
+            and perception.dirt_density > DIRT_APPROACH_DENSITY):
         return _move_toward(perception.dirt_direction, rng, heading)  # approach river
+
+    # Rule 2.7: Proactive cleaning — environment depleting, invest in public good.
+    # If NOT hungry but no food visible and growth_rate <= 0, river is likely polluted.
+    # Navigate toward river from anywhere; only fire beam when actually there.
+    if (perception.growth_rate <= DEPLETED_GROWTH_THRESHOLD
+            and not perception.resources_nearby
+            and perception.dirt_nearby):
+        if perception.dirt_density > DIRT_CLOSE_DENSITY and not_in_sand:
+            return clean_action
+        return _move_toward(perception.dirt_direction, rng, heading)
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
     # Heatmap added as fallback between memory and growth gradient.
