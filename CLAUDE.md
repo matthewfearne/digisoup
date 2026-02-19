@@ -23,7 +23,7 @@
 
 ```bash
 source .venv/bin/activate
-python -m pytest tests/test_agent.py -v           # Run tests (27 passing)
+python -m pytest tests/test_agent.py -v           # Run tests (29 passing)
 python -m evaluation.run --all-targets --episodes 10
 python -m evaluation.run --substrate clean_up --episodes 10
 python -m evaluation.run --scenario prisoners_dilemma_in_the_matrix__arena_0 --episodes 10
@@ -64,11 +64,12 @@ All versions git tagged. See VERSION_LOG.md for full scores.
 | v8 | Thermodynamic sensing (4x4 grid + growth + KL) | PD all 6 up avg +37%, CU held | `v8-thermodynamic-sensing` |
 | v9 | Resource conservation (sustainable harvesting) | CU_0=257 (+50% vs ACB), CU breakout | `v9-resource-conservation` |
 | v10 | Sharper Eyes (colour fix + heatmap + heading) | CU_7 doubled, CU_2/3/8 up 40-62% | `v10-sharper-eyes` |
+| v11 | Squid Custodian (cleaning rule) | CU_0=278 (+63% ACB), CH +71-116% | `v11-squid-custodian` |
 
-**High-water mark: v10** — Best overall version. CU_7 doubled (145 vs 63), CU_2 +44%, CU_3 +62%.
-CU_0 still beats ACB (209 vs 171). Apple-detection bug fix was highest-impact change since v2.
+**High-water mark: v11** — CU_0=277.93 (all-time high, +63% vs ACB=171). CH_0 +71%, CH_1 +116%.
+CU_1/4/5/6 still zero — agent never reaches river in resident scenarios.
 v5-v7 modified behavior (cooperation/energy/aggression) and regressed.
-v8-v10 are perception upgrades — all improved over v4.
+v8-v11: perception + targeted rules — all improved over v4.
 
 ### Key Insight
 
@@ -88,10 +89,10 @@ agents/digisoup/
   policy.py      # Melting Pot Policy interface (wires perception -> state -> action)
 ```
 
-### Current Agent (v10 = v8 + sharper eyes):
+### Current Agent (v11 = v10 + squid custodian):
 - **Perception:** 4x4 entropy grid, growth gradient (dS/dt), KL anomaly, warm mask (red/orange apples), dirt mask (CU pollution), resource mask (green+warm), agent density grid (4x4), change detection
 - **State:** Energy, cooperation tendency, emergent role, entropy EMA, spatial memory, resource heatmap (4x4 temporal), heading (movement EMA), prev entropy grid
-- **Action:** 6 priority rules: random explore → energy-seek → exploit-seek → cooperate/flee → stable-navigate (crowding avoidance + heatmap fallback) → chaotic-exploit
+- **Action:** 7 priority rules: random explore → energy-seek → **dirt cleaning** → exploit-seek → cooperate/flee → stable-navigate (crowding avoidance + heatmap fallback) → chaotic-exploit
 - **Phase:** Jellyfish oscillation — 50 steps explore, 50 steps exploit
 - **Memory:** Slime mold path reinforcement + temporal resource heatmap + heading persistence
 
@@ -108,7 +109,7 @@ agents/digisoup/policy.py      # Policy interface implementation
 agents/digisoup/perception.py  # Thermodynamic perception (v8: 4x4 grid + growth + KL)
 agents/digisoup/state.py       # Internal state machine
 agents/digisoup/action.py      # Priority-rule action selection
-tests/test_agent.py            # 20 tests
+tests/test_agent.py            # 29 tests
 evaluation/run.py              # Main evaluation runner
 evaluation/metrics.py          # Metrics and aggregation
 configs/scenarios.py           # Scenario configurations
@@ -120,5 +121,5 @@ VERSION_LOG.md                 # Full score log per version with comparisons
 ## DeepMind Baselines
 
 Raw baseline scores from `https://storage.googleapis.com/dm-meltingpot/meltingpot-results-2.3.0.feather`.
-Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v10: **209.10** (+23% vs ACB).
-Best Clean Up gains: v10 CU_7 **145.15** (+129% vs v8), CU_3 **110.67** (+62% vs v8).
+Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v11: **277.93** (+63% vs ACB).
+Best Clean Up gains: v11 CU_0 all-time high. CH_0 +71%, CH_1 +116% vs v10.

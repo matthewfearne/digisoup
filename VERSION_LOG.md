@@ -386,4 +386,39 @@ change since v2's original perception layer.
 
 ---
 
+## v11 -- Squid Custodian (Cleaning Rule)
+
+**Agent:** v10 + cleaning rule. When dirt/pollution is visible but no resources
+(apples stopped growing), approach dirt and fire INTERACT to clean. Also added
+to Rule 2 energy-low cascade. Targets the reciprocator deadlock in CU_4/5/6
+where background bots wait for focal agents to clean first.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 2.88 | +/- 1.79 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.94 | +/- 1.42 | 10 |
+| clean_up | _0 (3f/4bg) | 277.93 | +/- 77.80 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 106.90 | +/- 23.24 | 10 |
+| clean_up | _3 (3f/4bg) | 79.37 | +/- 25.55 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 92.50 | +/- 80.10 | 10 |
+| clean_up | _8 (6f/1bg) | 15.38 | +/- 1.88 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 16.89 | +/- 9.23 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 7.94 | +/- 2.55 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 4.90 | +/- 1.84 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 12.42 | +/- 4.81 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 16.62 | +/- 7.38 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 9.89 | +/- 2.57 | 10 |
+
+**vs v10:** CU_0 **277.93** (new all-time high, +63% vs ACB). CH_0 +71%, CH_1 +116%.
+PD all 6 held or improved (PD_3 +16%, PD_4 +19%). CU_2 +15%.
+CU_3 -28%, CU_7 -36% (high variance). CU_1/4/5/6 still zero — agent never
+reaches the river (stays in empty orchard, never sees dirt to trigger cleaning).
+29 tests passing.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
