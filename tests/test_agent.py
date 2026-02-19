@@ -4,7 +4,7 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.action import select_action, CROWDING_THRESHOLD
+from agents.digisoup.action import select_action, CROWDING_THRESHOLD, DIRT_CLOSE_DENSITY
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
     MEMORY_REINFORCE, RECENCY_DECAY,
@@ -536,3 +536,81 @@ def test_perception_with_warm_resources():
     p = perceive(obs)
     assert p.resources_nearby, "Red apples not detected as resources"
     assert p.resource_density > 0.0
+
+
+def test_cleaning_rule_fires_on_dirt_no_resources():
+    """Agent should INTERACT or approach dirt when pollution visible but no food."""
+    from agents.digisoup.perception import Perception
+    from agents.digisoup.action import INTERACT
+
+    # Dirt visible, no resources — agent should clean
+    perception = Perception(
+        entropy=2.0,
+        gradient=np.array([0.0, 1.0]),
+        entropy_grid=np.ones((4, 4)),
+        growth_gradient=np.zeros(2),
+        anomaly_direction=np.zeros(2),
+        anomaly_strength=0.0,
+        agents_nearby=False,
+        agent_direction=np.zeros(2),
+        agent_density=0.0,
+        agent_grid=np.zeros((4, 4)),
+        resources_nearby=False,          # no food
+        resource_direction=np.zeros(2),
+        resource_density=0.0,
+        dirt_nearby=True,                # pollution visible
+        dirt_direction=np.array([-1.0, 0.0]),  # dirt ahead
+        dirt_density=0.05,               # above DIRT_CLOSE_DENSITY (0.01)
+        growth_rate=0.0,
+        change=0.1,
+        change_direction=np.zeros(2),
+    )
+
+    state = initial_state()
+    state = state._replace(energy=0.8)  # above LOW_ENERGY_THRESHOLD
+
+    rng = np.random.default_rng(42)
+    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+
+    # Most actions should be INTERACT (cleaning) since dirt_density > threshold
+    interact_count = sum(1 for a in actions if a == INTERACT)
+    assert interact_count > 10, f"Only {interact_count}/20 INTERACT — should clean"
+
+
+def test_cleaning_rule_skipped_when_resources_available():
+    """Agent should NOT clean when food is available (eat first)."""
+    from agents.digisoup.perception import Perception
+    from agents.digisoup.action import INTERACT
+
+    # Both dirt AND resources visible — should pursue food, not clean
+    perception = Perception(
+        entropy=2.0,
+        gradient=np.array([0.0, 1.0]),
+        entropy_grid=np.ones((4, 4)),
+        growth_gradient=np.zeros(2),
+        anomaly_direction=np.zeros(2),
+        anomaly_strength=0.0,
+        agents_nearby=False,
+        agent_direction=np.zeros(2),
+        agent_density=0.0,
+        agent_grid=np.zeros((4, 4)),
+        resources_nearby=True,           # food available
+        resource_direction=np.array([0.0, 1.0]),
+        resource_density=0.05,
+        dirt_nearby=True,                # dirt also visible
+        dirt_direction=np.array([-1.0, 0.0]),
+        dirt_density=0.03,
+        growth_rate=0.0,
+        change=0.1,
+        change_direction=np.zeros(2),
+    )
+
+    state = initial_state()
+    state = state._replace(energy=0.8)
+
+    rng = np.random.default_rng(42)
+    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+
+    # Should NOT be mostly INTERACT — should pursue resources instead
+    interact_count = sum(1 for a in actions if a == INTERACT)
+    assert interact_count < 10, f"Agent INTERACT {interact_count}/20 — should eat, not clean"

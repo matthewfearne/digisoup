@@ -1,19 +1,18 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v10 "Sharper Eyes":
-- Removed v9 conservation rule (hurt PD, perception-only upgrades work better)
-- Heatmap fallback: when no resources visible and no memory, follow resource heatmap
-- Heading blend: movement biased toward current heading for smoother paths
-- Crowding avoidance: in stable environments, steer away from agent-dense quadrants
+v11 "Squid Custodian":
+- Cleaning rule: when dirt/pollution detected and no resources visible, approach
+  dirt and INTERACT to clean it. Fixes zero-score Clean Up scenarios where
+  background bots wait for focal agents to clean first (reciprocator deadlock).
+- Also inserted into energy-low cascade: starving + no food + dirt = clean.
 
-v8 base layers:
-- 4x4 fine-grained entropy gradient
-- Entropy growth gradient: follow where entropy is INCREASING
-- KL divergence anomaly: find agents in dark environments
+v10 base: colour detection fix, resource heatmap, heading persistence,
+crowding avoidance. v8: 4x4 entropy grid, growth gradient, KL anomaly.
 
-Priority rules (modified by phase + memory + heatmap + growth + anomaly):
+Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources / memory / heatmap / growth
+2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth
+2.5. Dirt nearby + no resources -> clean (approach + INTERACT)
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth-assisted)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
 5. Stable environment -> avoid crowds, follow growth or entropy gradient
@@ -66,6 +65,9 @@ ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
 
 # Agent crowding avoidance threshold
 CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowding
+
+# Dirt cleaning (Clean Up substrate: pollution blocks apple growth)
+DIRT_CLOSE_DENSITY = 0.01     # dirt density above this = close enough to INTERACT
 
 
 # ---------------------------------------------------------------------------
@@ -191,10 +193,15 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Cascade: visible resources > memory > heatmap > growth gradient > entropy gradient.
+    # Cascade: visible resources > dirt cleaning > memory > heatmap > growth > entropy.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng, heading)
+        elif perception.dirt_nearby:
+            # No food but pollution visible — clean to restart apple growth.
+            if perception.dirt_density > DIRT_CLOSE_DENSITY:
+                return interact_action
+            return _move_toward(perception.dirt_direction, rng, heading)
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng, heading)
         elif _has_heatmap(state):
@@ -203,6 +210,16 @@ def select_action(
             return _move_toward(perception.growth_gradient, rng, heading)
         else:
             return _move_toward(perception.gradient, rng, heading)
+
+    # Rule 2.5: Dirt cleaning — approach pollution and INTERACT to clean.
+    # In Clean Up, apple growth drops to ZERO when river pollution exceeds 40%.
+    # If we see dirt but no resources, apples have likely stopped growing.
+    # Clean the river to restart apple growth. Pure perception-driven: see dirt,
+    # no food, clean. When apples regrow, resources_nearby triggers and we eat.
+    if perception.dirt_nearby and not perception.resources_nearby:
+        if perception.dirt_density > DIRT_CLOSE_DENSITY:
+            return interact_action  # close enough — fire cleaning beam
+        return _move_toward(perception.dirt_direction, rng, heading)  # approach
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
     # Heatmap added as fallback between memory and growth gradient.
