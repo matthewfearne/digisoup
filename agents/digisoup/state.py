@@ -168,8 +168,9 @@ def update_state(
     # Interaction outcomes history
     interaction_outcomes = prev_state.interaction_outcomes
 
-    # Check if previous action was INTERACT or FIRE_CLEAN and if it had an effect
-    if prev_state.prev_action in (INTERACT_ACTION, FIRE_CLEAN_ACTION) and prev_state.has_prev_obs:
+    # Check if previous action was INTERACT (social zap) and if it had an effect.
+    # FIRE_CLEAN does NOT count — cleaning is environmental, not social.
+    if prev_state.prev_action == INTERACT_ACTION and prev_state.has_prev_obs:
         if perception_change > INTERACT_CHANGE_THRESHOLD:
             # Successful interaction: entropy changed after interacting
             energy += ENERGY_INTERACTION_GAIN

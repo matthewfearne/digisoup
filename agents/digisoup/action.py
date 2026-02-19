@@ -1,27 +1,25 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v14 "Hive Mind":
-- Shared spatial memory between all focal agents (mycorrhizal network).
-- When any agent finds dirt/resources, all agents learn the world position.
-- Hive direction is a single fallback at the END of Rules 2, 3, 5 — only
-  fires when all individual signals are exhausted.
-
-v11 base: cleaning rule. v10: colour fix, heatmap, heading. v8: 4x4 grid.
+v15 "River Eyes":
+- Fixed colour detection: water, grass, sand masks prevent phantom agents
+- FIRE_CLEAN (action 8) for Clean Up 9-action space
+- Sand avoidance + grass attraction for orchard navigation
+- Hive mind (v14), cleaning rule (v11), heatmap/heading (v10), 4x4 grid (v8)
 
 Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth / hive
-2.5. Dirt nearby + no resources -> clean (approach + INTERACT)
+2. Energy critically low -> seek resources / memory / heatmap / sand flee / grass / growth / hive
+2.5. River cleaning — only when CLOSE to river, no food, substantial water in view
 3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/hive)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
-5. Stable environment -> avoid crowds, follow growth / hive / entropy gradient
+5. Stable environment -> sand flee / grass attract / avoid crowds / heatmap / growth / hive
 6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
 
 Melting Pot action space:
   0: no-op  1: forward  2: backward  3: left
-  4: right  5: turn left  6: turn right  7: interact
+  4: right  5: turn left  6: turn right  7: fireZap  8: fireClean (CU only)
 """
 from __future__ import annotations
 
@@ -70,8 +68,12 @@ CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowdin
 # Sand avoidance — dead zone with nothing useful
 SAND_FLEE_DENSITY = 0.05       # sand density above this = flee toward productive area
 
+# Grass attraction — orchard floor where apples grow
+GRASS_ATTRACT_DENSITY = 0.02   # grass density above this = move toward orchard
+
 # River cleaning (Clean Up substrate: pollution blocks apple growth)
-DIRT_CLOSE_DENSITY = 0.002    # dirt density above this = close enough to INTERACT
+DIRT_APPROACH_DENSITY = 0.05  # need 5% of view to be water before approaching river
+DIRT_CLOSE_DENSITY = 0.15    # need 15% of view to be water before firing FIRE_CLEAN
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +134,7 @@ def _exploit_role(
     role = get_role(state)
 
     if role == "cooperator":
-        return n_actions - 1  # INTERACT
+        return INTERACT  # always 7 (fireZap — social interaction)
     elif role == "explorer":
         return _move_toward(perception.change_direction, rng)
     elif role == "scanner":
@@ -180,7 +182,7 @@ def select_action(
     Hive direction: shared discovery from other agents (world coords).
     """
     rng = rng or np.random.default_rng()
-    interact_action = n_actions - 1
+    interact_action = INTERACT  # always 7 (fireZap — social interaction)
     # Clean Up has 9 actions: action 8 = FIRE_CLEAN. Other substrates use 8.
     clean_action = FIRE_CLEAN if n_actions > 8 else interact_action
     phase = get_phase(state)
@@ -208,19 +210,19 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Cascade: visible resources > river cleaning > memory > heatmap > growth > entropy.
+    # Cascade: visible resources > memory > heatmap > growth > hive > entropy.
+    # When hungry, finding food is #1 — do NOT divert to cleaning.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
             return _move_toward(perception.resource_direction, rng, heading)
-        elif perception.dirt_nearby:
-            # No food but river visible — fire cleaning beam to remove pollution.
-            if perception.dirt_density > DIRT_CLOSE_DENSITY:
-                return clean_action
-            return _move_toward(perception.dirt_direction, rng, heading)
         elif _has_memory(state):
             return _move_toward(state.resource_memory, rng, heading)
         elif _has_heatmap(state):
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
+        elif perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY:
+            return _move_away(perception.sand_direction, rng, heading)
+        elif perception.grass_nearby and perception.grass_density > GRASS_ATTRACT_DENSITY:
+            return _move_toward(perception.grass_direction, rng, heading)
         elif _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
         elif hive_ego is not None:
@@ -228,15 +230,14 @@ def select_action(
         else:
             return _move_toward(perception.gradient, rng, heading)
 
-    # Rule 2.5: River cleaning — approach river and FIRE_CLEAN to remove pollution.
+    # Rule 2.5: River cleaning — only when CLOSE to river and no food visible.
+    # Requires substantial river in view (>5% to approach, >15% to fire).
     # In Clean Up, apple growth drops to ZERO when river pollution exceeds 40%.
-    # If we see river water but no resources, apples have likely stopped growing.
-    # Clean the river to restart apple growth. Pure perception-driven: see water,
-    # no food, clean. When apples regrow, resources_nearby triggers and we eat.
-    if perception.dirt_nearby and not perception.resources_nearby:
+    if (perception.dirt_nearby and not perception.resources_nearby
+            and perception.dirt_density > DIRT_APPROACH_DENSITY):
         if perception.dirt_density > DIRT_CLOSE_DENSITY:
-            return clean_action  # close enough — fire cleaning beam
-        return _move_toward(perception.dirt_direction, rng, heading)  # approach
+            return clean_action  # at the river — fire cleaning beam
+        return _move_toward(perception.dirt_direction, rng, heading)  # approach river
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
     # Heatmap added as fallback between memory and growth gradient.
@@ -283,6 +284,9 @@ def select_action(
         # Sand avoidance: flee dead zones toward productive areas
         if perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY:
             return _move_away(perception.sand_direction, rng, heading)
+        # Grass attraction: move toward orchard (where apples grow)
+        if perception.grass_nearby and perception.grass_density > GRASS_ATTRACT_DENSITY:
+            return _move_toward(perception.grass_direction, rng, heading)
         # Crowding avoidance: steer away from agent-dense quadrants
         if perception.agent_grid.max() > CROWDING_THRESHOLD:
             return _move_away(_grid_gradient(perception.agent_grid), rng, heading)

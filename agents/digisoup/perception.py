@@ -50,6 +50,9 @@ class Perception(NamedTuple):
     sand_nearby: bool              # sand/dead zone detected
     sand_direction: np.ndarray     # (dy, dx) toward sand — flee this direction
     sand_density: float            # fraction of sand pixels
+    grass_nearby: bool             # orchard grass detected (where apples grow)
+    grass_direction: np.ndarray    # (dy, dx) toward grass — move here for food
+    grass_density: float           # fraction of grass pixels
     growth_rate: float             # mean entropy change rate (+ = growing, - = depleting)
     change: float                  # frame-to-frame change entropy
     change_direction: np.ndarray   # (dy, dx) toward area of most change
@@ -430,6 +433,11 @@ def perceive(
         obs, _sand_mask(obs)
     )
 
+    # Grass/orchard detection (where apples grow — positive navigation signal)
+    grass_nearby, grass_direction, grass_density = _pixel_direction(
+        obs, _grass_mask(obs)
+    )
+
     # Change detection via observation differencing
     change = 0.0
     change_direction = np.zeros(2)
@@ -463,6 +471,9 @@ def perceive(
         sand_nearby=sand_nearby,
         sand_direction=sand_direction,
         sand_density=sand_density,
+        grass_nearby=grass_nearby,
+        grass_direction=grass_direction,
+        grass_density=grass_density,
         growth_rate=growth_rate,
         change=change,
         change_direction=change_direction,

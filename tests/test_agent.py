@@ -564,10 +564,13 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
         resource_density=0.0,
         dirt_nearby=True,                # river water visible
         dirt_direction=np.array([-1.0, 0.0]),  # water ahead
-        dirt_density=0.05,               # above DIRT_CLOSE_DENSITY
+        dirt_density=0.20,               # above DIRT_CLOSE_DENSITY (0.15)
         sand_nearby=False,
         sand_direction=np.zeros(2),
         sand_density=0.0,
+        grass_nearby=False,
+        grass_direction=np.zeros(2),
+        grass_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
@@ -580,7 +583,7 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
     # Use n_actions=9 (Clean Up action space)
     actions = [select_action(perception, state, 9, rng) for _ in range(20)]
 
-    # Most actions should be FIRE_CLEAN (action 8) since dirt_density > threshold
+    # Most actions should be FIRE_CLEAN (action 8) since dirt_density > DIRT_CLOSE_DENSITY
     clean_count = sum(1 for a in actions if a == FIRE_CLEAN)
     assert clean_count > 10, f"Only {clean_count}/20 FIRE_CLEAN — should clean"
 
@@ -611,6 +614,9 @@ def test_cleaning_rule_skipped_when_resources_available():
         sand_nearby=False,
         sand_direction=np.zeros(2),
         sand_density=0.0,
+        grass_nearby=False,
+        grass_direction=np.zeros(2),
+        grass_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
@@ -715,6 +721,9 @@ def test_hive_direction_used_as_fallback():
         sand_nearby=False,
         sand_direction=np.zeros(2),
         sand_density=0.0,
+        grass_nearby=False,
+        grass_direction=np.zeros(2),
+        grass_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
