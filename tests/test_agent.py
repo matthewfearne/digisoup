@@ -4,10 +4,13 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.action import select_action, CROWDING_THRESHOLD, DIRT_CLOSE_DENSITY
+from agents.digisoup.action import (
+    select_action, CROWDING_THRESHOLD, DIRT_CLOSE_DENSITY,
+    SCOUTING_MIN_INTEREST,
+)
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
-    MEMORY_REINFORCE, RECENCY_DECAY,
+    MEMORY_REINFORCE, RECENCY_DECAY, VISIT_MAP_SIZE, VISIT_MAP_ORIGIN,
 )
 
 
@@ -564,6 +567,8 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
+        edge_interest=False,
+        edge_direction=np.zeros(2),
     )
 
     state = initial_state()
@@ -603,6 +608,8 @@ def test_cleaning_rule_skipped_when_resources_available():
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
+        edge_interest=False,
+        edge_direction=np.zeros(2),
     )
 
     state = initial_state()
@@ -614,3 +621,100 @@ def test_cleaning_rule_skipped_when_resources_available():
     # Should NOT be mostly INTERACT — should pursue resources instead
     interact_count = sum(1 for a in actions if a == INTERACT)
     assert interact_count < 10, f"Agent INTERACT {interact_count}/20 — should eat, not clean"
+
+
+def test_orientation_tracks_turns():
+    """Dead reckoning should track orientation from turn actions."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    assert state.orientation == 0  # starts facing N
+
+    # TURN_RIGHT (action=6) → facing E
+    state = update_state(state, obs, action=6,
+                         perception_entropy=0.0, perception_change=0.0)
+    assert state.orientation == 1  # E
+
+    # TURN_RIGHT again → facing S
+    state = update_state(state, obs, action=6,
+                         perception_entropy=0.0, perception_change=0.0)
+    assert state.orientation == 2  # S
+
+    # TURN_LEFT (action=5) → back to E
+    state = update_state(state, obs, action=5,
+                         perception_entropy=0.0, perception_change=0.0)
+    assert state.orientation == 1  # E
+
+
+def test_visit_map_increments():
+    """Visit map should record movement at estimated position."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Move FORWARD 3 times (facing N → position moves up)
+    for _ in range(3):
+        state = update_state(state, obs, action=1,  # FORWARD
+                             perception_entropy=0.0, perception_change=0.0)
+
+    # Position should be (-3, 0) in world coords
+    assert state.position[0] < 0, f"Expected negative y, got {state.position[0]}"
+
+    # Visit map should have counts along the path
+    origin_y = VISIT_MAP_ORIGIN
+    origin_x = VISIT_MAP_ORIGIN
+    assert state.visit_map[origin_y - 1, origin_x] > 0  # visited
+    assert state.visit_map[origin_y - 3, origin_x] > 0  # current pos
+
+
+def test_edge_interest_detects_bright_edge():
+    """Edge interest should detect interesting content at view boundary."""
+    from agents.digisoup.perception import perceive
+
+    # Barren centre, but coloured strip on the left edge (river-like)
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs[:, :10] = [35, 133, 168]  # teal water colour on left edge
+
+    p = perceive(obs)
+    assert p.edge_interest, "Edge interest should detect bright left edge"
+    # Direction should point left (dx < 0)
+    assert p.edge_direction[1] < 0, f"Should point left, got dx={p.edge_direction[1]}"
+
+
+def test_scouting_memory_records_direction():
+    """Scouting should remember direction when resources detected."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Facing N (orientation=0), resources to the right (ego dx > 0 = world E)
+    state = update_state(
+        state, obs, action=0,
+        perception_entropy=1.0, perception_change=0.0,
+        resources_nearby=True,
+        resource_direction=np.array([0.0, 1.0]),  # ego right
+        resource_density=0.05,
+    )
+
+    # Scouting interest should be highest for East (index 1)
+    assert state.scouting_interest[1] > 0, "East scouting should be reinforced"
+    assert state.scouting_interest[1] > state.scouting_interest[3], \
+        "East should be stronger than West"
+
+
+def test_exploration_avoids_visited():
+    """Exploration direction should point away from heavily visited areas."""
+    from agents.digisoup.action import _exploration_direction
+
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Walk FORWARD (north) many times → heavily visit the north side
+    for _ in range(20):
+        state = update_state(state, obs, action=1,  # FORWARD
+                             perception_entropy=0.0, perception_change=0.0)
+
+    # Exploration should point SOUTH (away from visited north)
+    # In ego coords (facing N), south = backward = dy > 0
+    explore_dir = _exploration_direction(state)
+    assert explore_dir[0] > 0, (
+        f"Should explore south (dy>0), got dy={explore_dir[0]}"
+    )

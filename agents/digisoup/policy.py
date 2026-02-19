@@ -1,7 +1,7 @@
 """DigiSoup Policy -- official Melting Pot Policy interface.
 
-v10 "Sharper Eyes": improved colour detection, resource heatmap,
-agent density grid, heading persistence. See perception.py and action.py.
+v13 "Mycorrhizal Explorer": dead reckoning, visit map, scouting memory,
+edge interest detection. See perception.py, state.py, action.py.
 
 NO neural networks. NO reward optimization. NO training.
 """
@@ -62,6 +62,8 @@ class DigiSoupPolicy:
             resource_direction=perception.resource_direction,
             resource_density=perception.resource_density,
             entropy_grid=perception.entropy_grid,
+            dirt_nearby=perception.dirt_nearby,
+            dirt_direction=perception.dirt_direction,
         )
 
         return int(action), new_state
