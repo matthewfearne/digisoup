@@ -4,9 +4,7 @@ import numpy as np
 
 from agents.digisoup.policy import DigiSoupPolicy
 from agents.digisoup.perception import perceive, MAX_ENTROPY
-from agents.digisoup.action import (
-    select_action, CONSERVATION_DENSITY, CONSERVATION_DEPLETION,
-)
+from agents.digisoup.action import select_action, CROWDING_THRESHOLD
 from agents.digisoup.state import (
     get_role, get_phase, initial_state, update_state, PHASE_LENGTH,
     MEMORY_REINFORCE, RECENCY_DECAY,
@@ -395,39 +393,146 @@ def test_growth_rate_signal():
     assert p3.growth_rate > 0.0  # entropy grew = recovery
 
 
-def test_conservation_backs_off_depleting_patch():
-    """Agent should move AWAY from resources when patch is actively depleting."""
-    from agents.digisoup.perception import Perception
+def test_warm_mask_detects_red_apples():
+    """Warm mask should detect red and orange apple colours as resources."""
+    from agents.digisoup.perception import _warm_mask, _resource_mask, _agent_mask
 
-    # Craft a perception with dense resources and negative growth rate
-    perception = Perception(
-        entropy=2.0,
-        gradient=np.array([0.0, 1.0]),
-        entropy_grid=np.ones((4, 4)),
-        growth_gradient=np.zeros(2),
-        anomaly_direction=np.zeros(2),
-        anomaly_strength=0.0,
-        agents_nearby=False,
-        agent_direction=np.zeros(2),
-        agent_density=0.0,
-        resources_nearby=True,
-        resource_direction=np.array([0.0, 1.0]),  # resources to the right
-        resource_density=0.05,  # above CONSERVATION_DENSITY (0.02)
-        growth_rate=-0.3,  # below CONSERVATION_DEPLETION (-0.1) = depleting
-        change=0.1,
-        change_direction=np.zeros(2),
-    )
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    # Red apple CH colour (214, 88, 88) in top-left quadrant
+    obs[10:30, 10:30] = [214, 88, 88]
+    # Orange apple CU colour (212, 80, 57) in bottom-right
+    obs[60:80, 60:80] = [212, 80, 57]
+
+    warm = _warm_mask(obs)
+    assert warm[10:30, 10:30].sum() > 0, "Red apple not detected by warm mask"
+    assert warm[60:80, 60:80].sum() > 0, "Orange apple not detected by warm mask"
+
+    # These should be resources, NOT agents
+    resources = _resource_mask(obs)
+    agents = _agent_mask(obs)
+    assert resources[10:30, 10:30].sum() > 0, "Red apple not in resource mask"
+    assert agents[10:30, 10:30].sum() == 0, "Red apple misdetected as agent"
+    assert agents[60:80, 60:80].sum() == 0, "Orange apple misdetected as agent"
+
+
+def test_warm_mask_excludes_agents():
+    """Warm mask should not match any of the 7 Melting Pot agent colours."""
+    from agents.digisoup.perception import _warm_mask
+
+    agent_colours = [
+        (66, 135, 245),   # Agent 0 — blue
+        (245, 166, 35),   # Agent 1 — yellow/amber
+        (126, 211, 33),   # Agent 2 — lime
+        (208, 2, 27),     # Agent 3 — red
+        (189, 16, 224),   # Agent 4 — purple
+        (80, 227, 194),   # Agent 5 — teal
+        (255, 220, 0),    # Agent 6 — bright yellow
+    ]
+    for i, (r, g, b) in enumerate(agent_colours):
+        obs = np.zeros((88, 88, 3), dtype=np.uint8)
+        obs[20:60, 20:60] = [r, g, b]
+        warm = _warm_mask(obs)
+        assert warm.sum() == 0, f"Agent {i} colour ({r},{g},{b}) falsely matched warm mask"
+
+
+def test_dirt_mask_detects_pollution():
+    """Dirt mask should detect CU pollution colour."""
+    from agents.digisoup.perception import _dirt_mask
+
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs[30:50, 30:50] = [2, 245, 80]  # CU pollution colour
+
+    dirt = _dirt_mask(obs)
+    assert dirt[30:50, 30:50].sum() > 0, "CU pollution not detected"
+    # Background should not be dirt
+    assert dirt[0:10, 0:10].sum() == 0, "Background false positive"
+
+
+def test_agent_grid():
+    """Agent density grid should show density in the correct quadrant."""
+    from agents.digisoup.perception import perceive
+
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    # Place bright blue (agent-coloured) pixels in bottom-right
+    obs[66:88, 66:88] = [66, 135, 245]  # Agent 0 blue
+
+    p = perceive(obs)
+    assert p.agent_grid.shape == (4, 4)
+    # Bottom-right quadrant (3,3) should have highest density
+    assert p.agent_grid[3, 3] > p.agent_grid[0, 0]
+
+
+def test_resource_heatmap_builds():
+    """Resource heatmap should accumulate when resources are seen."""
+    from agents.digisoup.state import HEATMAP_THRESHOLD
 
     state = initial_state()
-    # Set energy above LOW_ENERGY_THRESHOLD so Rule 2 doesn't fire
-    state = state._replace(energy=0.8)
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
 
-    rng = np.random.default_rng(42)
-    actions = [select_action(perception, state, 8, rng) for _ in range(20)]
+    # See resources to the right for several steps
+    for _ in range(5):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=1.0, perception_change=0.0,
+            resources_nearby=True,
+            resource_direction=np.array([0.0, 1.0]),
+            resource_density=0.05,
+        )
 
-    # Agent should NOT move toward resources (action RIGHT=4 would mean
-    # chasing resources to the right). Most actions should be LEFT=3 or
-    # BACKWARD=2 (moving away from resources at [0, 1]).
-    from agents.digisoup.action import RIGHT
-    right_count = sum(1 for a in actions if a == RIGHT)
-    assert right_count < 5, f"Agent moved right {right_count}/20 times — should back off"
+    assert state.resource_heatmap.max() > HEATMAP_THRESHOLD
+    # Right side of heatmap (gx=2 or 3) should be reinforced
+    assert state.resource_heatmap[:, 2:].max() > state.resource_heatmap[:, :2].max()
+
+
+def test_resource_heatmap_decays():
+    """Resource heatmap should decay when no resources seen."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Build up heatmap
+    for _ in range(5):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=1.0, perception_change=0.0,
+            resources_nearby=True,
+            resource_direction=np.array([0.0, 1.0]),
+            resource_density=0.05,
+        )
+    peak = state.resource_heatmap.max()
+
+    # 20 steps with no resources
+    for _ in range(20):
+        state = update_state(
+            state, obs, action=1,
+            perception_entropy=1.0, perception_change=0.0,
+            resources_nearby=False,
+        )
+
+    assert state.resource_heatmap.max() < peak
+
+
+def test_heading_tracks_movement():
+    """Heading should reflect recent movement direction."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Move FORWARD (action=1) repeatedly
+    for _ in range(10):
+        state = update_state(
+            state, obs, action=1,  # FORWARD = dy=-1, dx=0
+            perception_entropy=1.0, perception_change=0.0,
+        )
+
+    # Heading should point "up" (dy < 0)
+    assert state.heading[0] < 0, f"Heading dy={state.heading[0]}, expected negative"
+
+
+def test_perception_with_warm_resources():
+    """Full perception should detect warm resources as resources_nearby."""
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+    # Red apples (214, 88, 88) — would previously be missed as resources
+    obs[10:30, 60:80] = [214, 88, 88]
+
+    p = perceive(obs)
+    assert p.resources_nearby, "Red apples not detected as resources"
+    assert p.resource_density > 0.0

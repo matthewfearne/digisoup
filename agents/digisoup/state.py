@@ -46,6 +46,16 @@ MEMORY_REINFORCE = 0.3             # how strongly new resource sighting updates 
 MEMORY_DECAY = 0.05                # per-step decay of resource direction memory
 RECENCY_DECAY = 0.02               # per-step decay of resource recency signal
 
+# Resource heatmap (temporal spatial memory)
+HEATMAP_DECAY = 0.95               # per-step decay multiplier
+HEATMAP_REINFORCE = 0.3            # reinforcement strength per sighting
+HEATMAP_THRESHOLD = 0.1            # minimum heatmap value to follow
+
+# Directional persistence (heading EMA)
+HEADING_EMA = 0.8                  # weight of previous heading
+HEADING_BLEND = 0.2                # heading influence on movement direction
+HEADING_MIN_NORM = 0.1             # minimum heading strength to blend
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -65,6 +75,8 @@ class DigiSoupState(NamedTuple):
     resource_memory: np.ndarray      # decaying direction toward resources (dy, dx)
     resource_recency: float          # [0,1] how recently resources were seen
     prev_entropy_grid: np.ndarray   # previous frame's 4x4 entropy grid (for growth)
+    resource_heatmap: np.ndarray    # (4,4) temporal spatial memory of resources
+    heading: np.ndarray             # (2,) EMA of recent movement direction
 
 
 def initial_state() -> DigiSoupState:
@@ -82,6 +94,8 @@ def initial_state() -> DigiSoupState:
         resource_memory=np.zeros(2),
         resource_recency=0.0,
         prev_entropy_grid=np.zeros((4, 4)),
+        resource_heatmap=np.zeros((4, 4)),
+        heading=np.zeros(2),
     )
 
 
@@ -171,6 +185,25 @@ def update_state(
         resource_memory *= (1.0 - MEMORY_DECAY)
         resource_recency = max(0.0, resource_recency - RECENCY_DECAY)
 
+    # Resource heatmap: temporal spatial memory (4x4 grid)
+    resource_heatmap = prev_state.resource_heatmap.copy() * HEATMAP_DECAY
+    if resources_nearby and resource_direction is not None:
+        # Map direction to grid quadrant
+        gy = int(np.clip(1.5 - resource_direction[0] * 1.5, 0, 3))
+        gx = int(np.clip(1.5 + resource_direction[1] * 1.5, 0, 3))
+        strength = min(resource_density * 10.0, 1.0)
+        resource_heatmap[gy, gx] = min(
+            resource_heatmap[gy, gx] + HEATMAP_REINFORCE * strength, 1.0
+        )
+
+    # Heading: EMA of movement direction
+    heading = prev_state.heading.copy()
+    _ACTION_DIRS = {1: (-1, 0), 2: (1, 0), 3: (0, -1), 4: (0, 1)}
+    action_dir = _ACTION_DIRS.get(action)
+    if action_dir is not None:
+        d = np.array(action_dir, dtype=np.float64)
+        heading = HEADING_EMA * heading + (1.0 - HEADING_EMA) * d
+
     return DigiSoupState(
         step_count=prev_state.step_count + 1,
         energy=energy,
@@ -184,6 +217,8 @@ def update_state(
         resource_memory=resource_memory,
         resource_recency=resource_recency,
         prev_entropy_grid=entropy_grid if entropy_grid is not None else prev_state.prev_entropy_grid,
+        resource_heatmap=resource_heatmap,
+        heading=heading,
     )
 
 

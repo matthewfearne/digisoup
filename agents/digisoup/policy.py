@@ -1,14 +1,7 @@
 """DigiSoup Policy -- official Melting Pot Policy interface.
 
-Uses the original DigiSoup architecture:
-- Perception: entropy, gradients, agent/resource detection, change detection
-- Internal state: energy, cooperation tendency, role emergence
-- Action: entropy-gradient priority rules
-
-The Policy interface requires:
-    initial_state() -> State
-    step(timestep, prev_state) -> (action, next_state)
-    close() -> None
+v10 "Sharper Eyes": improved colour detection, resource heatmap,
+agent density grid, heading persistence. See perception.py and action.py.
 
 NO neural networks. NO reward optimization. NO training.
 """

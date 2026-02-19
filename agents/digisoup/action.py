@@ -1,25 +1,22 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v9 adds resource conservation (sustainable harvesting for Commons):
-- When in a dense resource patch that is actively depleting, back off
-- Perception-driven: uses growth_rate signal (dS/dt < 0 = patch dying)
-- Survival overrides conservation (Rule 2 still fires when energy low)
+v10 "Sharper Eyes":
+- Removed v9 conservation rule (hurt PD, perception-only upgrades work better)
+- Heatmap fallback: when no resources visible and no memory, follow resource heatmap
+- Heading blend: movement biased toward current heading for smoother paths
+- Crowding avoidance: in stable environments, steer away from agent-dense quadrants
 
-v8 upgrades perception with thermodynamic sensing:
-- 4x4 fine-grained entropy gradient (replaces 2x2 quadrants)
-- Entropy growth gradient: follow where entropy is INCREASING (apple regrowth)
+v8 base layers:
+- 4x4 fine-grained entropy gradient
+- Entropy growth gradient: follow where entropy is INCREASING
 - KL divergence anomaly: find agents in dark environments
 
-v4 added spatial memory (slime mold path reinforcement).
-v3 added temporal phase cycling (jellyfish-inspired oscillation).
-
-Priority rules (modified by phase + memory + growth + anomaly + conservation):
+Priority rules (modified by phase + memory + heatmap + growth + anomaly):
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources or follow memory or growth
-2.5. Resource conservation: dense patch + depletion -> back off
-3. Exploit phase: seek resources at moderate energy (memory/growth-assisted)
+2. Energy critically low -> seek resources / memory / heatmap / growth
+3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth-assisted)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
-5. Stable environment -> follow growth gradient or entropy gradient
+5. Stable environment -> avoid crowds, follow growth or entropy gradient
 6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
@@ -32,8 +29,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from .perception import Perception, MAX_ENTROPY
-from .state import DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase
+from .perception import Perception, MAX_ENTROPY, _grid_gradient
+from .state import (
+    DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
+    HEATMAP_THRESHOLD, HEADING_BLEND, HEADING_MIN_NORM,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -64,22 +64,30 @@ MEMORY_FOLLOW_RECENCY = 0.1  # follow memory only if recency above this
 # KL anomaly detection (agents in dark environments)
 ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
 
-# Resource conservation (sustainable harvesting for commons)
-CONSERVATION_DENSITY = 0.02    # resource density above this = "dense patch"
-CONSERVATION_DEPLETION = -0.1  # growth_rate below this = "actively depleting"
+# Agent crowding avoidance threshold
+CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowding
 
 
 # ---------------------------------------------------------------------------
 # Direction-to-action helpers
 # ---------------------------------------------------------------------------
 
-def _move_toward(direction: np.ndarray, rng: np.random.Generator) -> int:
+def _move_toward(
+    direction: np.ndarray,
+    rng: np.random.Generator,
+    heading: np.ndarray | None = None,
+) -> int:
     """Convert a (dy, dx) direction vector to a movement action.
 
     Adds small noise for natural-looking movement. dy<0 = upward
     in image space, which maps to FORWARD (toward top of view).
+    If heading is provided, blends it for smoother directional persistence.
     """
-    noisy = direction + rng.normal(0, 0.2, size=2)
+    if heading is not None and np.linalg.norm(heading) > HEADING_MIN_NORM:
+        effective = (1.0 - HEADING_BLEND) * direction + HEADING_BLEND * heading
+    else:
+        effective = direction
+    noisy = effective + rng.normal(0, 0.2, size=2)
     norm = np.linalg.norm(noisy)
 
     if norm < 0.05:
@@ -93,9 +101,13 @@ def _move_toward(direction: np.ndarray, rng: np.random.Generator) -> int:
         return RIGHT if dx > 0 else LEFT
 
 
-def _move_away(direction: np.ndarray, rng: np.random.Generator) -> int:
+def _move_away(
+    direction: np.ndarray,
+    rng: np.random.Generator,
+    heading: np.ndarray | None = None,
+) -> int:
     """Move in the opposite direction."""
-    return _move_toward(-direction, rng)
+    return _move_toward(-direction, rng, heading)
 
 
 def _exploit_role(
@@ -140,6 +152,11 @@ def _has_growth(perception: 'Perception') -> bool:
     return np.linalg.norm(perception.growth_gradient) > 0.05
 
 
+def _has_heatmap(state: DigiSoupState) -> bool:
+    """Check if the resource heatmap has usable signal."""
+    return float(state.resource_heatmap.max()) > HEATMAP_THRESHOLD
+
+
 def select_action(
     perception: Perception,
     state: DigiSoupState,
@@ -151,10 +168,13 @@ def select_action(
     The agent alternates between explore and exploit phases on a fixed
     clock. Spatial memory (slime mold path reinforcement) biases movement
     toward remembered resource locations when nothing is currently visible.
+    Resource heatmap provides a broader spatial memory fallback.
+    Heading persistence smooths movement trajectories.
     """
     rng = rng or np.random.default_rng()
     interact_action = n_actions - 1
     phase = get_phase(state)
+    heading = state.heading
 
     # Rule 1: Random exploration — phase modulates probability.
     # Explore phase: cast a wider net. Exploit phase: stay focused.
@@ -171,37 +191,30 @@ def select_action(
         return int(rng.integers(0, n_actions))
 
     # Rule 2: Energy critically low -> seek resources (always priority).
-    # Cascade: visible resources > memory > growth gradient > entropy gradient.
+    # Cascade: visible resources > memory > heatmap > growth gradient > entropy gradient.
     if state.energy < LOW_ENERGY_THRESHOLD:
         if perception.resources_nearby:
-            return _move_toward(perception.resource_direction, rng)
+            return _move_toward(perception.resource_direction, rng, heading)
         elif _has_memory(state):
-            return _move_toward(state.resource_memory, rng)
+            return _move_toward(state.resource_memory, rng, heading)
+        elif _has_heatmap(state):
+            return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
-            return _move_toward(perception.growth_gradient, rng)
+            return _move_toward(perception.growth_gradient, rng, heading)
         else:
-            return _move_toward(perception.gradient, rng)
-
-    # Rule 2.5: Resource conservation — back off from depleting patches.
-    # In Commons Harvest, apple regrowth requires neighboring apples. If the
-    # agent strip-mines a patch, regrowth stops entirely (tipping point). When
-    # we detect dense resources AND negative growth rate (entropy declining =
-    # patch being depleted), move away to let it regrow. Survival (Rule 2)
-    # overrides this — a starving agent still eats.
-    if (perception.resources_nearby
-            and perception.resource_density > CONSERVATION_DENSITY
-            and perception.growth_rate < CONSERVATION_DEPLETION):
-        return _move_away(perception.resource_direction, rng)
+            return _move_toward(perception.gradient, rng, heading)
 
     # Rule 3: Exploit phase bonus — seek resources at moderate energy.
-    # Growth gradient added as fallback after memory.
+    # Heatmap added as fallback between memory and growth gradient.
     if phase == "exploit" and state.energy < EXPLOIT_ENERGY_SEEK:
         if perception.resources_nearby:
-            return _move_toward(perception.resource_direction, rng)
+            return _move_toward(perception.resource_direction, rng, heading)
         elif _has_memory(state):
-            return _move_toward(state.resource_memory, rng)
+            return _move_toward(state.resource_memory, rng, heading)
+        elif _has_heatmap(state):
+            return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
-            return _move_toward(perception.growth_gradient, rng)
+            return _move_toward(perception.growth_gradient, rng, heading)
 
     # Rule 4: Agents nearby — phase-dependent cooperation threshold.
     # Now also detects agents via KL anomaly in dark environments.
@@ -219,7 +232,7 @@ def select_action(
         if state.cooperation_tendency > coop_threshold:
             return interact_action
         else:
-            return _move_away(agent_dir, rng)
+            return _move_away(agent_dir, rng, heading)
 
     # Rules 5 & 6: Environment stability determines movement strategy.
     if perception.change < STABLE_THRESHOLD:
@@ -227,14 +240,20 @@ def select_action(
         if phase == "explore" and rng.random() < 0.3:
             return TURN_LEFT if rng.random() < 0.5 else TURN_RIGHT
         if phase == "exploit" and perception.resources_nearby:
-            return _move_toward(perception.resource_direction, rng)
+            return _move_toward(perception.resource_direction, rng, heading)
         # Memory fallback: if stable and no resources, follow the trail
         if phase == "exploit" and _has_memory(state):
-            return _move_toward(state.resource_memory, rng)
+            return _move_toward(state.resource_memory, rng, heading)
+        # Crowding avoidance: steer away from agent-dense quadrants
+        if perception.agent_grid.max() > CROWDING_THRESHOLD:
+            return _move_away(_grid_gradient(perception.agent_grid), rng, heading)
+        # Heatmap fallback: follow remembered resource locations
+        if _has_heatmap(state):
+            return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         # Growth gradient: prefer moving toward where entropy is increasing
         if _has_growth(perception):
-            return _move_toward(perception.growth_gradient, rng)
-        return _move_toward(perception.gradient, rng)
+            return _move_toward(perception.growth_gradient, rng, heading)
+        return _move_toward(perception.gradient, rng, heading)
     else:
         # Chaotic: exploit current role strategy.
         return _exploit_role(state, perception, n_actions, rng)
