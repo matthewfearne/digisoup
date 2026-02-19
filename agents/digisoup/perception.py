@@ -302,16 +302,29 @@ def _water_mask(obs: np.ndarray) -> np.ndarray:
     return (r < 60) & (g > 100) & (b > 100)
 
 
+def _grass_mask(obs: np.ndarray) -> np.ndarray:
+    """Detect orchard grass/ground pixels (olive/yellow-green).
+
+    CU grass is (164,189,75) and (182,207,95) — saturated (114) but NOT agents.
+    Previously misdetected as agents, causing agents to flee the orchard into sand.
+    Separated from agents by: g>r (agents tend to have r>g or very high/low g).
+    """
+    r = obs[:, :, 0].astype(np.float32)
+    g = obs[:, :, 1].astype(np.float32)
+    b = obs[:, :, 2].astype(np.float32)
+    return (r > 140) & (g > 150) & (g > r) & (b < 120) & ((g - b) > 60)
+
+
 def _resource_mask(obs: np.ndarray) -> np.ndarray:
     """Detect all resource pixels (green apples + red/orange apples)."""
     return _green_mask(obs) | _warm_mask(obs)
 
 
 def _agent_mask(obs: np.ndarray) -> np.ndarray:
-    """Detect agent-coloured pixels (saturated, non-resource/water/dirt, not too dark).
+    """Detect agent-coloured pixels (saturated, non-environment, not too dark).
 
-    v15 fix: excludes river water and dirt that were previously misdetected
-    as agents, causing phantom agent sightings near the CU river.
+    Excludes all environment features: resources, water, dirt, grass.
+    Each was previously misdetected as agents due to high saturation.
     """
     r = obs[:, :, 0].astype(np.float32)
     g = obs[:, :, 1].astype(np.float32)
@@ -320,7 +333,8 @@ def _agent_mask(obs: np.ndarray) -> np.ndarray:
     min_c = np.minimum(np.minimum(r, g), b)
     saturation = max_c - min_c
 
-    exclude = _resource_mask(obs) | _water_mask(obs) | _dirt_mask(obs)
+    exclude = (_resource_mask(obs) | _water_mask(obs) |
+               _dirt_mask(obs) | _grass_mask(obs))
     return (saturation > 50) & (~exclude) & (max_c > 80)
 
 
