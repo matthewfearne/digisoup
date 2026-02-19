@@ -1,26 +1,21 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v13 "Mycorrhizal Explorer" — three perception upgrades:
-- Dead reckoning + visit map: tracks orientation/position from actions, builds
-  a 32x32 coarse visit grid. Exploration gradient points toward unvisited areas.
-- Directional scouting memory: when resources/dirt detected, remembers the world
-  direction. Guides agent back toward interesting areas when nothing visible.
-- Edge interest detection: compares entropy at view edges vs centre. Detects
-  the river/activity at the boundary of the 88x88 view in barren areas.
+v11 "Squid Custodian":
+- Cleaning rule: when dirt/pollution detected and no resources visible, approach
+  dirt and INTERACT to clean it. Fixes zero-score Clean Up scenarios where
+  background bots wait for focal agents to clean first (reciprocator deadlock).
+- Also inserted into energy-low cascade: starving + no food + dirt = clean.
 
-All three are fallbacks at the END of existing rule cascades — only trigger
-when all existing signals (resources, memory, heatmap, growth) are exhausted.
-Working scenarios (CU_0, CU_2, etc.) never reach these fallbacks.
-
-v11 base: cleaning rule. v10: colour fix, heatmap, heading. v8: 4x4 grid.
+v10 base: colour detection fix, resource heatmap, heading persistence,
+crowding avoidance. v8: 4x4 entropy grid, growth gradient, KL anomaly.
 
 Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth / edge / scout / explore
+2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth
 2.5. Dirt nearby + no resources -> clean (approach + INTERACT)
-3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/edge/scout/explore)
+3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth-assisted)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
-5. Stable environment -> avoid crowds, follow growth / edge / scout / explore / entropy
+5. Stable environment -> avoid crowds, follow growth or entropy gradient
 6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
@@ -37,7 +32,6 @@ from .perception import Perception, MAX_ENTROPY, _grid_gradient
 from .state import (
     DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
     HEATMAP_THRESHOLD, HEADING_BLEND, HEADING_MIN_NORM,
-    VISIT_MAP_SIZE, VISIT_MAP_ORIGIN, _WORLD_DIRS,
 )
 
 
@@ -74,10 +68,6 @@ CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowdin
 
 # Dirt cleaning (Clean Up substrate: pollution blocks apple growth)
 DIRT_CLOSE_DENSITY = 0.01     # dirt density above this = close enough to INTERACT
-
-# Exploration fallbacks (v13: only fire when all other signals exhausted)
-SCOUTING_MIN_INTEREST = 0.05  # minimum scouting interest to follow
-EXPLORATION_MIN_VISITS = 3    # explore toward cells visited fewer than this
 
 
 # ---------------------------------------------------------------------------
@@ -120,86 +110,6 @@ def _move_away(
 ) -> int:
     """Move in the opposite direction."""
     return _move_toward(-direction, rng, heading)
-
-
-def _world_to_ego(world_dir: np.ndarray, orientation: int) -> np.ndarray:
-    """Convert world direction to egocentric coordinates."""
-    dy, dx = float(world_dir[0]), float(world_dir[1])
-    if orientation == 0:    # facing N
-        return np.array([dy, dx])
-    elif orientation == 1:  # facing E
-        return np.array([-dx, dy])
-    elif orientation == 2:  # facing S
-        return np.array([-dy, -dx])
-    else:                   # facing W
-        return np.array([dx, -dy])
-
-
-_EXPLORE_RADIUS = 8  # how far to look in the visit map for exploration
-
-
-def _exploration_direction(state: DigiSoupState) -> np.ndarray:
-    """Direction toward least-visited areas (ego-centric).
-
-    Scans a local neighborhood around the agent's estimated position.
-    Unvisited cells pull strongly, visited cells pull weakly. Closer cells
-    weighted more. Handles grid edges naturally (out-of-bounds cells ignored).
-    """
-    cy = int(np.clip(state.position[0] + VISIT_MAP_ORIGIN, 0, VISIT_MAP_SIZE - 1))
-    cx = int(np.clip(state.position[1] + VISIT_MAP_ORIGIN, 0, VISIT_MAP_SIZE - 1))
-
-    dy_sum, dx_sum, total_w = 0.0, 0.0, 0.0
-    for dy in range(-_EXPLORE_RADIUS, _EXPLORE_RADIUS + 1):
-        for dx in range(-_EXPLORE_RADIUS, _EXPLORE_RADIUS + 1):
-            if dy == 0 and dx == 0:
-                continue
-            gy, gx = cy + dy, cx + dx
-            if 0 <= gy < VISIT_MAP_SIZE and 0 <= gx < VISIT_MAP_SIZE:
-                # Unvisited cells pull hard, visited cells pull soft
-                w = 1.0 / (state.visit_map[gy, gx] + 1.0)
-                dist = max(abs(dy), abs(dx))
-                w /= dist  # closer matters more
-                dy_sum += dy * w
-                dx_sum += dx * w
-                total_w += w
-
-    if total_w < 1e-8:
-        return np.zeros(2)
-
-    world_dir = np.array([dy_sum / total_w, dx_sum / total_w])
-    norm = np.linalg.norm(world_dir)
-    if norm < 1e-6:
-        return np.zeros(2)
-    world_dir /= norm
-    return _world_to_ego(world_dir, state.orientation)
-
-
-def _scouting_direction(state: DigiSoupState) -> np.ndarray:
-    """Direction toward highest scouting interest (ego-centric)."""
-    interest = state.scouting_interest
-    if interest.max() < SCOUTING_MIN_INTEREST:
-        return np.zeros(2)
-
-    # Weighted sum of cardinal directions
-    cardinals = np.array([[-1, 0], [0, 1], [1, 0], [0, -1]], dtype=np.float64)
-    world_dir = np.zeros(2)
-    for i in range(4):
-        world_dir += interest[i] * cardinals[i]
-    norm = np.linalg.norm(world_dir)
-    if norm < 1e-6:
-        return np.zeros(2)
-    world_dir /= norm
-    return _world_to_ego(world_dir, state.orientation)
-
-
-def _has_exploration(state: DigiSoupState) -> bool:
-    """Check if there's an exploration signal (unvisited areas)."""
-    return np.linalg.norm(_exploration_direction(state)) > 0.05
-
-
-def _has_scouting(state: DigiSoupState) -> bool:
-    """Check if there's a scouting signal (remembered interesting direction)."""
-    return state.scouting_interest.max() > SCOUTING_MIN_INTEREST
 
 
 def _exploit_role(
@@ -298,12 +208,6 @@ def select_action(
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
-        elif perception.edge_interest:
-            return _move_toward(perception.edge_direction, rng, heading)
-        elif _has_scouting(state):
-            return _move_toward(_scouting_direction(state), rng, heading)
-        elif _has_exploration(state):
-            return _move_toward(_exploration_direction(state), rng, heading)
         else:
             return _move_toward(perception.gradient, rng, heading)
 
@@ -328,12 +232,6 @@ def select_action(
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
-        elif perception.edge_interest:
-            return _move_toward(perception.edge_direction, rng, heading)
-        elif _has_scouting(state):
-            return _move_toward(_scouting_direction(state), rng, heading)
-        elif _has_exploration(state):
-            return _move_toward(_exploration_direction(state), rng, heading)
 
     # Rule 4: Agents nearby — phase-dependent cooperation threshold.
     # Now also detects agents via KL anomaly in dark environments.
@@ -372,15 +270,6 @@ def select_action(
         # Growth gradient: prefer moving toward where entropy is increasing
         if _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
-        # Edge interest: something interesting at the boundary of vision
-        if perception.edge_interest:
-            return _move_toward(perception.edge_direction, rng, heading)
-        # Scouting: follow remembered direction toward resources/dirt
-        if _has_scouting(state):
-            return _move_toward(_scouting_direction(state), rng, heading)
-        # Exploration: head toward unvisited areas (dead reckoning)
-        if _has_exploration(state):
-            return _move_toward(_exploration_direction(state), rng, heading)
         return _move_toward(perception.gradient, rng, heading)
     else:
         # Chaotic: exploit current role strategy.

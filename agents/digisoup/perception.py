@@ -50,8 +50,6 @@ class Perception(NamedTuple):
     growth_rate: float             # mean entropy change rate (+ = growing, - = depleting)
     change: float                  # frame-to-frame change entropy
     change_direction: np.ndarray   # (dy, dx) toward area of most change
-    edge_interest: bool            # something interesting at view edge
-    edge_direction: np.ndarray     # (dy, dx) toward interesting edge
 
 
 # ---------------------------------------------------------------------------
@@ -322,48 +320,6 @@ def _agent_density_grid(obs: np.ndarray, agent_mask_result: np.ndarray) -> np.nd
 
 
 # ---------------------------------------------------------------------------
-# Edge interest detection (something interesting at the edge of vision)
-# ---------------------------------------------------------------------------
-
-_EDGE_STRIP = 10       # pixel width of edge strips to check
-_EDGE_BRIGHT_MIN = 10.0   # minimum mean brightness for an edge to matter
-_EDGE_BRIGHT_MARGIN = 5.0 # edge must exceed centre brightness by this much
-
-
-def _edge_interest(obs: np.ndarray) -> tuple[bool, np.ndarray]:
-    """Check view edges for interesting content the agent should explore toward.
-
-    In a barren area (empty orchard), the centre is dark/uniform. If the river
-    or any coloured content is at the edge of the 88x88 view, its pixels have
-    higher mean brightness than the dark centre. Uses brightness rather than
-    entropy because uniform-coloured regions (e.g. solid teal river) have
-    zero entropy but are clearly interesting.
-    Returns (detected, direction_toward_interesting_edge).
-    """
-    h, w = obs.shape[:2]
-    s = min(_EDGE_STRIP, h // 4, w // 4)
-
-    b_top = float(obs[:s, :, :].mean())
-    b_bottom = float(obs[h - s:, :, :].mean())
-    b_left = float(obs[:, :s, :].mean())
-    b_right = float(obs[:, w - s:, :].mean())
-
-    centre = float(obs[s:h - s, s:w - s, :].mean())
-    max_edge = max(b_top, b_bottom, b_left, b_right)
-
-    if max_edge > _EDGE_BRIGHT_MIN and max_edge > centre + _EDGE_BRIGHT_MARGIN:
-        dy = b_bottom - b_top
-        dx = b_right - b_left
-        direction = np.array([dy, dx])
-        norm = np.linalg.norm(direction)
-        if norm > 1e-6:
-            direction = direction / norm
-        return True, direction
-
-    return False, np.zeros(2)
-
-
-# ---------------------------------------------------------------------------
 # Main perception function
 # ---------------------------------------------------------------------------
 
@@ -419,9 +375,6 @@ def perceive(
         obs, _dirt_mask(obs)
     )
 
-    # Edge interest: something interesting at the boundary of vision
-    edge_interest, edge_direction = _edge_interest(obs)
-
     # Change detection via observation differencing
     change = 0.0
     change_direction = np.zeros(2)
@@ -455,6 +408,4 @@ def perceive(
         growth_rate=growth_rate,
         change=change,
         change_direction=change_direction,
-        edge_interest=edge_interest,
-        edge_direction=edge_direction,
     )

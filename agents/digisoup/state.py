@@ -56,12 +56,6 @@ HEADING_EMA = 0.8                  # weight of previous heading
 HEADING_BLEND = 0.2                # heading influence on movement direction
 HEADING_MIN_NORM = 0.1             # minimum heading strength to blend
 
-# Dead reckoning exploration (v13: spatial map)
-VISIT_MAP_SIZE = 32                # 32x32 coarse grid of visit counts
-VISIT_MAP_ORIGIN = 16              # agent starts at grid centre
-SCOUTING_DECAY = 0.99             # per-step decay of directional interest
-SCOUTING_REINFORCE = 0.3          # boost when resources/dirt detected in a direction
-
 
 # ---------------------------------------------------------------------------
 # State
@@ -83,10 +77,6 @@ class DigiSoupState(NamedTuple):
     prev_entropy_grid: np.ndarray   # previous frame's 4x4 entropy grid (for growth)
     resource_heatmap: np.ndarray    # (4,4) temporal spatial memory of resources
     heading: np.ndarray             # (2,) EMA of recent movement direction
-    orientation: int                # 0=N, 1=E, 2=S, 3=W (dead reckoning)
-    position: np.ndarray            # (2,) estimated world (y, x)
-    visit_map: np.ndarray           # (32,32) coarse grid of visit counts
-    scouting_interest: np.ndarray   # (4,) interest per world direction (N,E,S,W)
 
 
 def initial_state() -> DigiSoupState:
@@ -106,44 +96,12 @@ def initial_state() -> DigiSoupState:
         prev_entropy_grid=np.zeros((4, 4)),
         resource_heatmap=np.zeros((4, 4)),
         heading=np.zeros(2),
-        orientation=0,
-        position=np.zeros(2),
-        visit_map=np.zeros((VISIT_MAP_SIZE, VISIT_MAP_SIZE)),
-        scouting_interest=np.zeros(4),
     )
 
 
 # ---------------------------------------------------------------------------
 # State update
 # ---------------------------------------------------------------------------
-
-# World direction vectors: N=up(-1,0), E=right(0,+1), S=down(+1,0), W=left(0,-1)
-_WORLD_DIRS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
-
-
-def _ego_to_world(ego_dir: np.ndarray, orientation: int) -> np.ndarray:
-    """Convert egocentric direction to world coordinates."""
-    dy, dx = float(ego_dir[0]), float(ego_dir[1])
-    if orientation == 0:    # facing N
-        return np.array([dy, dx])
-    elif orientation == 1:  # facing E: ego-fwd = world-east
-        return np.array([dx, -dy])
-    elif orientation == 2:  # facing S: ego-fwd = world-south
-        return np.array([-dy, -dx])
-    else:                   # facing W: ego-fwd = world-west
-        return np.array([-dx, dy])
-
-
-def _closest_cardinal(world_dir: np.ndarray) -> int:
-    """Return cardinal index (0=N,1=E,2=S,3=W) closest to direction."""
-    best, best_dot = 0, -2.0
-    for i, (dy, dx) in _WORLD_DIRS.items():
-        dot = world_dir[0] * dy + world_dir[1] * dx
-        if dot > best_dot:
-            best_dot = dot
-            best = i
-    return best
-
 
 def update_state(
     prev_state: DigiSoupState,
@@ -155,8 +113,6 @@ def update_state(
     resource_direction: np.ndarray | None = None,
     resource_density: float = 0.0,
     entropy_grid: np.ndarray | None = None,
-    dirt_nearby: bool = False,
-    dirt_direction: np.ndarray | None = None,
 ) -> DigiSoupState:
     """Update internal state after taking an action and receiving observation.
 
@@ -248,44 +204,6 @@ def update_state(
         d = np.array(action_dir, dtype=np.float64)
         heading = HEADING_EMA * heading + (1.0 - HEADING_EMA) * d
 
-    # Dead reckoning: orientation + position tracking
-    orientation = prev_state.orientation
-    if action == 5:     # TURN_LEFT
-        orientation = (orientation - 1) % 4
-    elif action == 6:   # TURN_RIGHT
-        orientation = (orientation + 1) % 4
-
-    position = prev_state.position.copy()
-    if action == 1:     # FORWARD
-        d = _WORLD_DIRS[prev_state.orientation]
-        position += np.array(d, dtype=np.float64)
-    elif action == 2:   # BACKWARD
-        d = _WORLD_DIRS[(prev_state.orientation + 2) % 4]
-        position += np.array(d, dtype=np.float64)
-    elif action == 3:   # LEFT (strafe)
-        d = _WORLD_DIRS[(prev_state.orientation - 1) % 4]
-        position += np.array(d, dtype=np.float64)
-    elif action == 4:   # RIGHT (strafe)
-        d = _WORLD_DIRS[(prev_state.orientation + 1) % 4]
-        position += np.array(d, dtype=np.float64)
-
-    # Visit map: mark current position
-    visit_map = prev_state.visit_map.copy()
-    gy = int(np.clip(position[0] + VISIT_MAP_ORIGIN, 0, VISIT_MAP_SIZE - 1))
-    gx = int(np.clip(position[1] + VISIT_MAP_ORIGIN, 0, VISIT_MAP_SIZE - 1))
-    visit_map[gy, gx] += 1
-
-    # Scouting interest: decay all, reinforce when resources/dirt detected
-    scouting_interest = prev_state.scouting_interest.copy() * SCOUTING_DECAY
-    if resources_nearby and resource_direction is not None:
-        world_dir = _ego_to_world(resource_direction, prev_state.orientation)
-        cardinal = _closest_cardinal(world_dir)
-        scouting_interest[cardinal] += SCOUTING_REINFORCE
-    if dirt_nearby and dirt_direction is not None:
-        world_dir = _ego_to_world(dirt_direction, prev_state.orientation)
-        cardinal = _closest_cardinal(world_dir)
-        scouting_interest[cardinal] += SCOUTING_REINFORCE
-
     return DigiSoupState(
         step_count=prev_state.step_count + 1,
         energy=energy,
@@ -301,10 +219,6 @@ def update_state(
         prev_entropy_grid=entropy_grid if entropy_grid is not None else prev_state.prev_entropy_grid,
         resource_heatmap=resource_heatmap,
         heading=heading,
-        orientation=orientation,
-        position=position,
-        visit_map=visit_map,
-        scouting_interest=scouting_interest,
     )
 
 
