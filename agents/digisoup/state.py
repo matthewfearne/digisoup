@@ -56,6 +56,10 @@ HEADING_EMA = 0.8                  # weight of previous heading
 HEADING_BLEND = 0.2                # heading influence on movement direction
 HEADING_MIN_NORM = 0.1             # minimum heading strength to blend
 
+# Dead reckoning (orientation + position for hive memory)
+# World direction vectors: N=up(-1,0), E=right(0,+1), S=down(+1,0), W=left(0,-1)
+_WORLD_DIRS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -77,6 +81,8 @@ class DigiSoupState(NamedTuple):
     prev_entropy_grid: np.ndarray   # previous frame's 4x4 entropy grid (for growth)
     resource_heatmap: np.ndarray    # (4,4) temporal spatial memory of resources
     heading: np.ndarray             # (2,) EMA of recent movement direction
+    orientation: int                # 0=N, 1=E, 2=S, 3=W (dead reckoning)
+    position: np.ndarray            # (2,) estimated world (y, x)
 
 
 def initial_state() -> DigiSoupState:
@@ -96,12 +102,32 @@ def initial_state() -> DigiSoupState:
         prev_entropy_grid=np.zeros((4, 4)),
         resource_heatmap=np.zeros((4, 4)),
         heading=np.zeros(2),
+        orientation=0,
+        position=np.zeros(2),
     )
 
 
 # ---------------------------------------------------------------------------
 # State update
 # ---------------------------------------------------------------------------
+
+def ego_to_world(ego_dir: np.ndarray, orientation: int) -> np.ndarray:
+    """Convert egocentric direction (dy, dx) to world coordinates."""
+    dy, dx = float(ego_dir[0]), float(ego_dir[1])
+    if orientation == 0:    return np.array([dy, dx])      # N: identity
+    elif orientation == 1:  return np.array([dx, -dy])      # E: rotate 90 CW
+    elif orientation == 2:  return np.array([-dy, -dx])     # S: rotate 180
+    else:                   return np.array([-dx, dy])      # W: rotate 270
+
+
+def world_to_ego(world_dir: np.ndarray, orientation: int) -> np.ndarray:
+    """Convert world direction to egocentric (dy, dx)."""
+    dy, dx = float(world_dir[0]), float(world_dir[1])
+    if orientation == 0:    return np.array([dy, dx])       # N: identity
+    elif orientation == 1:  return np.array([-dx, dy])      # E
+    elif orientation == 2:  return np.array([-dy, -dx])     # S
+    else:                   return np.array([dx, -dy])      # W
+
 
 def update_state(
     prev_state: DigiSoupState,
@@ -204,6 +230,23 @@ def update_state(
         d = np.array(action_dir, dtype=np.float64)
         heading = HEADING_EMA * heading + (1.0 - HEADING_EMA) * d
 
+    # Dead reckoning: track orientation and position for hive memory
+    orientation = prev_state.orientation
+    if action == 5:     # TURN_LEFT
+        orientation = (orientation - 1) % 4
+    elif action == 6:   # TURN_RIGHT
+        orientation = (orientation + 1) % 4
+
+    position = prev_state.position.copy()
+    if action in (1, 2, 3, 4):
+        # Map egocentric movement to world direction
+        if action == 1:     move_orient = prev_state.orientation           # FORWARD
+        elif action == 2:   move_orient = (prev_state.orientation + 2) % 4 # BACKWARD
+        elif action == 3:   move_orient = (prev_state.orientation - 1) % 4 # LEFT strafe
+        else:               move_orient = (prev_state.orientation + 1) % 4 # RIGHT strafe
+        d = _WORLD_DIRS[move_orient]
+        position += np.array(d, dtype=np.float64)
+
     return DigiSoupState(
         step_count=prev_state.step_count + 1,
         energy=energy,
@@ -219,6 +262,8 @@ def update_state(
         prev_entropy_grid=entropy_grid if entropy_grid is not None else prev_state.prev_entropy_grid,
         resource_heatmap=resource_heatmap,
         heading=heading,
+        orientation=orientation,
+        position=position,
     )
 
 

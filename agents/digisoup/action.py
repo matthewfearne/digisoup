@@ -1,21 +1,20 @@
 """Entropy-gradient-based action selection for DigiSoup agents.
 
-v11 "Squid Custodian":
-- Cleaning rule: when dirt/pollution detected and no resources visible, approach
-  dirt and INTERACT to clean it. Fixes zero-score Clean Up scenarios where
-  background bots wait for focal agents to clean first (reciprocator deadlock).
-- Also inserted into energy-low cascade: starving + no food + dirt = clean.
+v14 "Hive Mind":
+- Shared spatial memory between all focal agents (mycorrhizal network).
+- When any agent finds dirt/resources, all agents learn the world position.
+- Hive direction is a single fallback at the END of Rules 2, 3, 5 — only
+  fires when all individual signals are exhausted.
 
-v10 base: colour detection fix, resource heatmap, heading persistence,
-crowding avoidance. v8: 4x4 entropy grid, growth gradient, KL anomaly.
+v11 base: cleaning rule. v10: colour fix, heatmap, heading. v8: 4x4 grid.
 
 Priority rules:
 1. Random exploration — higher in explore phase, lower in exploit
-2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth
+2. Energy critically low -> seek resources / clean dirt / memory / heatmap / growth / hive
 2.5. Dirt nearby + no resources -> clean (approach + INTERACT)
-3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth-assisted)
+3. Exploit phase: seek resources at moderate energy (memory/heatmap/growth/hive)
 4. Agents nearby (colour OR anomaly) -> phase-dependent cooperation threshold
-5. Stable environment -> avoid crowds, follow growth or entropy gradient
+5. Stable environment -> avoid crowds, follow growth / hive / entropy gradient
 6. Chaotic environment -> exploit current role
 
 NO reward optimization. NO training. Every rule explainable in one paragraph.
@@ -32,6 +31,7 @@ from .perception import Perception, MAX_ENTROPY, _grid_gradient
 from .state import (
     DigiSoupState, LOW_ENERGY_THRESHOLD, get_role, get_phase,
     HEATMAP_THRESHOLD, HEADING_BLEND, HEADING_MIN_NORM,
+    world_to_ego,
 )
 
 
@@ -164,6 +164,7 @@ def select_action(
     state: DigiSoupState,
     n_actions: int = 8,
     rng: np.random.Generator | None = None,
+    hive_direction: np.ndarray | None = None,
 ) -> int:
     """Choose action using phase-modulated entropy-gradient priority rules.
 
@@ -172,11 +173,19 @@ def select_action(
     toward remembered resource locations when nothing is currently visible.
     Resource heatmap provides a broader spatial memory fallback.
     Heading persistence smooths movement trajectories.
+    Hive direction: shared discovery from other agents (world coords).
     """
     rng = rng or np.random.default_rng()
     interact_action = n_actions - 1
     phase = get_phase(state)
     heading = state.heading
+
+    # Convert hive direction from world to egocentric
+    hive_ego = None
+    if hive_direction is not None:
+        ego = world_to_ego(hive_direction, state.orientation)
+        if np.linalg.norm(ego) > 0.05:
+            hive_ego = ego
 
     # Rule 1: Random exploration — phase modulates probability.
     # Explore phase: cast a wider net. Exploit phase: stay focused.
@@ -208,6 +217,8 @@ def select_action(
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
+        elif hive_ego is not None:
+            return _move_toward(hive_ego, rng, heading)
         else:
             return _move_toward(perception.gradient, rng, heading)
 
@@ -232,6 +243,8 @@ def select_action(
             return _move_toward(_grid_gradient(state.resource_heatmap), rng, heading)
         elif _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
+        elif hive_ego is not None:
+            return _move_toward(hive_ego, rng, heading)
 
     # Rule 4: Agents nearby — phase-dependent cooperation threshold.
     # Now also detects agents via KL anomaly in dark environments.
@@ -270,6 +283,9 @@ def select_action(
         # Growth gradient: prefer moving toward where entropy is increasing
         if _has_growth(perception):
             return _move_toward(perception.growth_gradient, rng, heading)
+        # Hive memory: follow direction toward another agent's discovery
+        if hive_ego is not None:
+            return _move_toward(hive_ego, rng, heading)
         return _move_toward(perception.gradient, rng, heading)
     else:
         # Chaotic: exploit current role strategy.

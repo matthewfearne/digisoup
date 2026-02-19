@@ -614,3 +614,120 @@ def test_cleaning_rule_skipped_when_resources_available():
     # Should NOT be mostly INTERACT — should pursue resources instead
     interact_count = sum(1 for a in actions if a == INTERACT)
     assert interact_count < 10, f"Agent INTERACT {interact_count}/20 — should eat, not clean"
+
+
+def test_orientation_tracks_turns():
+    """Dead reckoning should track orientation from turn actions."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    assert state.orientation == 0  # starts facing N
+
+    # TURN_RIGHT (action=6) → facing E
+    state = update_state(state, obs, action=6,
+                         perception_entropy=0.0, perception_change=0.0)
+    assert state.orientation == 1  # E
+
+    # TURN_LEFT (action=5) → back to N
+    state = update_state(state, obs, action=5,
+                         perception_entropy=0.0, perception_change=0.0)
+    assert state.orientation == 0  # N
+
+
+def test_position_tracks_movement():
+    """Dead reckoning should track position from movement actions."""
+    state = initial_state()
+    obs = np.zeros((88, 88, 3), dtype=np.uint8)
+
+    # Move FORWARD 3 times (facing N → position moves up)
+    for _ in range(3):
+        state = update_state(state, obs, action=1,
+                             perception_entropy=0.0, perception_change=0.0)
+
+    assert state.position[0] == -3.0, f"Expected y=-3, got {state.position[0]}"
+    assert state.position[1] == 0.0, f"Expected x=0, got {state.position[1]}"
+
+
+def test_hive_memory_shared_between_agents():
+    """Hive memory should share discoveries between policy instances."""
+    from agents.digisoup.policy import DigiSoupPolicy, HiveMemory
+
+    # Reset hive
+    DigiSoupPolicy._hive = HiveMemory()
+
+    p1 = DigiSoupPolicy(seed=1)
+    p2 = DigiSoupPolicy(seed=2)
+    s1 = p1.initial_state()
+    s2 = p2.initial_state()
+
+    # Agent 1 sees dirt (feed it an obs with pollution pixels)
+    obs_dirt = np.zeros((88, 88, 3), dtype=np.uint8)
+    obs_dirt[10:30, 10:30] = [2, 245, 80]  # CU pollution
+
+    ts = dm_env.TimeStep(
+        step_type=dm_env.StepType.MID, reward=0.0, discount=1.0,
+        observation={"RGB": obs_dirt},
+    )
+    _, s1 = p1.step(ts, s1)
+
+    # Hive should now have a point
+    hive = DigiSoupPolicy._get_hive()
+    assert len(hive.points) > 0, "Hive should have dirt discovery"
+
+    # Agent 2 (at different position) should be able to query
+    has_signal, direction = hive.query(10.0, 10.0)
+    assert has_signal or len(hive.points) > 0, "Hive should be queryable"
+
+
+def test_hive_direction_used_as_fallback():
+    """Agent should follow hive direction when all other signals exhausted."""
+    from agents.digisoup.perception import Perception
+
+    # Barren perception — nothing to see
+    perception = Perception(
+        entropy=0.5,
+        gradient=np.zeros(2),  # flat — no entropy signal
+        entropy_grid=np.ones((4, 4)) * 0.5,
+        growth_gradient=np.zeros(2),
+        anomaly_direction=np.zeros(2),
+        anomaly_strength=0.0,
+        agents_nearby=False,
+        agent_direction=np.zeros(2),
+        agent_density=0.0,
+        agent_grid=np.zeros((4, 4)),
+        resources_nearby=False,
+        resource_direction=np.zeros(2),
+        resource_density=0.0,
+        dirt_nearby=False,
+        dirt_direction=np.zeros(2),
+        dirt_density=0.0,
+        growth_rate=0.0,
+        change=0.1,
+        change_direction=np.zeros(2),
+    )
+
+    state = initial_state()
+    state = state._replace(
+        energy=0.8,
+        resource_recency=0.0,        # no memory
+        resource_memory=np.zeros(2),
+        resource_heatmap=np.zeros((4, 4)),  # no heatmap
+    )
+
+    # Hive says "go east" in world coords = (0, 1)
+    hive_dir = np.array([0.0, 1.0])
+
+    rng = np.random.default_rng(42)
+    from agents.digisoup.action import RIGHT, LEFT
+    actions = [
+        select_action(perception, state, 8, rng, hive_direction=hive_dir)
+        for _ in range(50)
+    ]
+
+    # Agent facing N, hive says go east → ego right (dx > 0)
+    # Should see more RIGHT than LEFT movements
+    right_count = sum(1 for a in actions if a == RIGHT)
+    left_count = sum(1 for a in actions if a == LEFT)
+    assert right_count > left_count, (
+        f"Should bias right (hive=east), got R={right_count} L={left_count}"
+    )

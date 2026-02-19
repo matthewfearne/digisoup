@@ -22,8 +22,9 @@ import warnings
 import logging
 from typing import Any
 
-# Suppress TF/CUDA/absl noise
+# Suppress TF/CUDA/absl noise and disable GPU
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logging.getLogger("absl").setLevel(logging.ERROR)
 
