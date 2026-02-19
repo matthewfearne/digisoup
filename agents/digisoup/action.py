@@ -73,8 +73,9 @@ SAND_FLEE_DENSITY = 0.05       # sand density above this = flee toward productiv
 GRASS_ATTRACT_DENSITY = 0.02   # grass density above this = move toward orchard
 
 # River cleaning (Clean Up substrate: pollution blocks apple growth)
-DIRT_APPROACH_DENSITY = 0.05  # need 5% of view to be water before approaching river
-DIRT_CLOSE_DENSITY = 0.15    # need 15% of view to be water before firing FIRE_CLEAN
+DIRT_APPROACH_DENSITY = 0.03  # need 3% of view to be water before approaching river
+DIRT_CLOSE_DENSITY = 0.08    # need 8% of view to be water before firing FIRE_CLEAN
+                             # (sand guard prevents false firing — no need for high threshold)
 
 # Depleted environment — apples not regrowing, river needs cleaning
 DEPLETED_GROWTH_THRESHOLD = 0.0  # growth_rate at or below this = environment depleting
