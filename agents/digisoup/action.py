@@ -67,7 +67,10 @@ ANOMALY_AGENT_THRESHOLD = 0.3  # KL above this = likely an agent in dark arena
 # Agent crowding avoidance threshold
 CROWDING_THRESHOLD = 0.05      # agent_grid max above this = significant crowding
 
-# Dirt cleaning (Clean Up substrate: pollution blocks apple growth)
+# Sand avoidance — dead zone with nothing useful
+SAND_FLEE_DENSITY = 0.05       # sand density above this = flee toward productive area
+
+# River cleaning (Clean Up substrate: pollution blocks apple growth)
 DIRT_CLOSE_DENSITY = 0.002    # dirt density above this = close enough to INTERACT
 
 
@@ -277,6 +280,9 @@ def select_action(
         # Memory fallback: if stable and no resources, follow the trail
         if phase == "exploit" and _has_memory(state):
             return _move_toward(state.resource_memory, rng, heading)
+        # Sand avoidance: flee dead zones toward productive areas
+        if perception.sand_nearby and perception.sand_density > SAND_FLEE_DENSITY:
+            return _move_away(perception.sand_direction, rng, heading)
         # Crowding avoidance: steer away from agent-dense quadrants
         if perception.agent_grid.max() > CROWDING_THRESHOLD:
             return _move_away(_grid_gradient(perception.agent_grid), rng, heading)

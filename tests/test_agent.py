@@ -565,6 +565,9 @@ def test_cleaning_rule_fires_on_dirt_no_resources():
         dirt_nearby=True,                # river water visible
         dirt_direction=np.array([-1.0, 0.0]),  # water ahead
         dirt_density=0.05,               # above DIRT_CLOSE_DENSITY
+        sand_nearby=False,
+        sand_direction=np.zeros(2),
+        sand_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
@@ -605,6 +608,9 @@ def test_cleaning_rule_skipped_when_resources_available():
         dirt_nearby=True,                # river also visible
         dirt_direction=np.array([-1.0, 0.0]),
         dirt_density=0.03,
+        sand_nearby=False,
+        sand_direction=np.zeros(2),
+        sand_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),
@@ -706,6 +712,9 @@ def test_hive_direction_used_as_fallback():
         dirt_nearby=False,
         dirt_direction=np.zeros(2),
         dirt_density=0.0,
+        sand_nearby=False,
+        sand_direction=np.zeros(2),
+        sand_density=0.0,
         growth_rate=0.0,
         change=0.1,
         change_direction=np.zeros(2),

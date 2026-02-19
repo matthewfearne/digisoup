@@ -44,9 +44,12 @@ class Perception(NamedTuple):
     resources_nearby: bool         # resource-coloured pixels detected
     resource_direction: np.ndarray # (dy, dx) toward resources
     resource_density: float        # fraction of resource pixels
-    dirt_nearby: bool              # CU pollution detected
-    dirt_direction: np.ndarray     # (dy, dx) toward pollution
-    dirt_density: float            # fraction of dirt pixels
+    dirt_nearby: bool              # CU river water detected (proxy for cleanable area)
+    dirt_direction: np.ndarray     # (dy, dx) toward river water
+    dirt_density: float            # fraction of river water pixels
+    sand_nearby: bool              # sand/dead zone detected
+    sand_direction: np.ndarray     # (dy, dx) toward sand — flee this direction
+    sand_density: float            # fraction of sand pixels
     growth_rate: float             # mean entropy change rate (+ = growing, - = depleting)
     change: float                  # frame-to-frame change entropy
     change_direction: np.ndarray   # (dy, dx) toward area of most change
@@ -302,6 +305,18 @@ def _water_mask(obs: np.ndarray) -> np.ndarray:
     return (r < 60) & (g > 100) & (b > 100)
 
 
+def _sand_mask(obs: np.ndarray) -> np.ndarray:
+    """Detect sand/dead zone pixels (warm beige, high values, low saturation).
+
+    CU sand is (222,221,189) and (219,218,186). Dead zone — no resources,
+    no river, nothing to do. Agent should flee toward productive areas.
+    """
+    r = obs[:, :, 0].astype(np.float32)
+    g = obs[:, :, 1].astype(np.float32)
+    b = obs[:, :, 2].astype(np.float32)
+    return (r > 200) & (g > 200) & (b > 170) & ((r - b) < 50)
+
+
 def _grass_mask(obs: np.ndarray) -> np.ndarray:
     """Detect orchard grass/ground pixels (olive/yellow-green).
 
@@ -405,9 +420,14 @@ def perceive(
         obs, _resource_mask(obs)
     )
 
-    # Dirt/pollution detection (CU cleanup substrate)
+    # Dirt/river water detection (CU cleanup substrate)
     dirt_nearby, dirt_direction, dirt_density = _pixel_direction(
         obs, _dirt_mask(obs)
+    )
+
+    # Sand/dead zone detection
+    sand_nearby, sand_direction, sand_density = _pixel_direction(
+        obs, _sand_mask(obs)
     )
 
     # Change detection via observation differencing
@@ -440,6 +460,9 @@ def perceive(
         dirt_nearby=dirt_nearby,
         dirt_direction=dirt_direction,
         dirt_density=dirt_density,
+        sand_nearby=sand_nearby,
+        sand_direction=sand_direction,
+        sand_density=sand_density,
         growth_rate=growth_rate,
         change=change,
         change_direction=change_direction,
