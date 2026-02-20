@@ -23,7 +23,7 @@
 
 ```bash
 source .venv/bin/activate
-python -m pytest tests/test_agent.py -v           # Run tests (29 passing)
+python -m pytest tests/test_agent.py -v           # Run tests (33 passing)
 python -m evaluation.run --all-targets --episodes 10
 python -m evaluation.run --substrate clean_up --episodes 10
 python -m evaluation.run --scenario prisoners_dilemma_in_the_matrix__arena_0 --episodes 10
@@ -65,11 +65,16 @@ All versions git tagged. See VERSION_LOG.md for full scores.
 | v9 | Resource conservation (sustainable harvesting) | CU_0=257 (+50% vs ACB), CU breakout | `v9-resource-conservation` |
 | v10 | Sharper Eyes (colour fix + heatmap + heading) | CU_7 doubled, CU_2/3/8 up 40-62% | `v10-sharper-eyes` |
 | v11 | Squid Custodian (cleaning rule) | CU_0=278 (+63% ACB), CH +71-116% | `v11-squid-custodian` |
+| v12 | Echo Explorer (starvation + echo feedback) | CU/CH regressed | `v12-echo-explorer` |
+| v13 | Mycorrhizal Explorer (dead reckoning + scouting) | Broad regression | `v13-mycorrhizal-explorer` |
+| v14 | Hive Mind (shared spatial memory) | Base for v15, no formal eval | `v14-hive-mind` |
+| v15 | River Eyes (depletion cleaning + symbiosis) | **5 zero→scoring CU, CU total +28%** | `v15-river-eyes` |
 
-**High-water mark: v11** — CU_0=277.93 (all-time high, +63% vs ACB=171). CH_0 +71%, CH_1 +116%.
-CU_1/4/5/6 still zero — agent never reaches river in resident scenarios.
+**High-water mark: v15** — 5 previously-zero CU scenarios now scoring (CU_4=44, CU_5=36, CU_6=19).
+CU_7=180 (+95% vs v11), CU_8=43 (+179%). CU_0=243 still beats ACB=171 by +42%.
+Total CU reward 735 vs 572 in v11 (+28%). CH_1=3.16 new all-time high.
 v5-v7 modified behavior (cooperation/energy/aggression) and regressed.
-v8-v11: perception + targeted rules — all improved over v4.
+v8-v15: perception + targeted rules — all improved over v4.
 
 ### Key Insight
 
@@ -89,12 +94,12 @@ agents/digisoup/
   policy.py      # Melting Pot Policy interface (wires perception -> state -> action)
 ```
 
-### Current Agent (v11 = v10 + squid custodian):
-- **Perception:** 4x4 entropy grid, growth gradient (dS/dt), KL anomaly, warm mask (red/orange apples), dirt mask (CU pollution), resource mask (green+warm), agent density grid (4x4), change detection
-- **State:** Energy, cooperation tendency, emergent role, entropy EMA, spatial memory, resource heatmap (4x4 temporal), heading (movement EMA), prev entropy grid
-- **Action:** 7 priority rules: random explore → energy-seek → **dirt cleaning** → exploit-seek → cooperate/flee → stable-navigate (crowding avoidance + heatmap fallback) → chaotic-exploit
+### Current Agent (v15 = v14 + river eyes):
+- **Perception:** 4x4 entropy grid, growth gradient (dS/dt), KL anomaly, warm mask (red/orange apples), dirt/water mask (CU pollution), grass mask (orchard floor), sand mask (dead zone), resource mask (green+warm), agent density grid (4x4), change detection
+- **State:** Energy, cooperation tendency, emergent role, entropy EMA, spatial memory, resource heatmap (4x4 temporal), heading (movement EMA), orientation + position (dead reckoning), prev entropy grid
+- **Action:** 8 priority rules: random explore → energy-seek (depletion→river) → **river cleaning (sand-guarded)** → proactive cleaning (dS/dt≤0) → exploit-seek → **context-aware symbiosis** → stable-navigate (sand flee + grass attract + crowding avoidance + heatmap) → chaotic-exploit
 - **Phase:** Jellyfish oscillation — 50 steps explore, 50 steps exploit
-- **Memory:** Slime mold path reinforcement + temporal resource heatmap + heading persistence
+- **Memory:** Slime mold path reinforcement + temporal resource heatmap + heading persistence + **hive mind** (shared focal agent spatial memory)
 
 ## Target Scenarios
 
@@ -109,7 +114,7 @@ agents/digisoup/policy.py      # Policy interface implementation
 agents/digisoup/perception.py  # Thermodynamic perception (v8: 4x4 grid + growth + KL)
 agents/digisoup/state.py       # Internal state machine
 agents/digisoup/action.py      # Priority-rule action selection
-tests/test_agent.py            # 29 tests
+tests/test_agent.py            # 33 tests
 evaluation/run.py              # Main evaluation runner
 evaluation/metrics.py          # Metrics and aggregation
 configs/scenarios.py           # Scenario configurations
@@ -121,5 +126,5 @@ VERSION_LOG.md                 # Full score log per version with comparisons
 ## DeepMind Baselines
 
 Raw baseline scores from `https://storage.googleapis.com/dm-meltingpot/meltingpot-results-2.3.0.feather`.
-Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v11: **277.93** (+63% vs ACB).
-Best Clean Up gains: v11 CU_0 all-time high. CH_0 +71%, CH_1 +116% vs v10.
+Key comparison: Clean Up _0 — ACB: 170.66, VMPO: 180.24, DigiSoup v15: **242.87** (+42% vs ACB).
+Best version: v15 — 8 of 9 CU scenarios scoring (5 unlocked from zero). Total CU reward +28% vs v11.

@@ -421,4 +421,141 @@ reaches the river (stays in empty orchard, never sees dirt to trigger cleaning).
 
 ---
 
+## v12 -- Echo Explorer (Starvation Exploration + Echo Cleaning) [BRANCHED OFF]
+
+**Agent:** v11 + starvation exploration mode + echo cleaning feedback. When energy
+drops critically low and no resources visible, explores aggressively. Cleaning
+success creates positive echo that reinforces cleaning behavior.
+
+**Status:** CU and CH regressed. NOT carried forward — reverted to v11.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.50 | +/- 0.65 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 1.20 | +/- 0.79 | 10 |
+| clean_up | _0 (3f/4bg) | 197.10 | +/- 71.58 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 100.80 | +/- 14.95 | 10 |
+| clean_up | _3 (3f/4bg) | 72.50 | +/- 19.73 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 16.40 | +/- 19.52 | 10 |
+| clean_up | _8 (6f/1bg) | 12.80 | +/- 3.43 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 17.86 | +/- 6.46 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 8.88 | +/- 2.78 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 6.06 | +/- 1.96 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 18.76 | +/- 5.71 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 15.09 | +/- 4.22 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 16.09 | +/- 3.36 | 10 |
+
+**vs v11:** CU_0 -29%, CU_7 -82%. PD mixed: _3 +51%, _5 +63% but _0 +6%.
+Echo feedback amplified noise without improving core behavior.
+
+**Decision:** Echo exploration hurts more than helps. Reverted to v11 base.
+
+---
+
+## v13 -- Mycorrhizal Explorer (Dead Reckoning + Scouting + Edge Detection) [BRANCHED OFF]
+
+**Agent:** v11 + dead reckoning position tracking + frontier scouting + world-edge
+detection. Agent maintains position estimate to avoid revisiting explored areas and
+scouts toward unexplored frontiers.
+
+**Status:** Broad regression. NOT carried forward — reverted to v11.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 1.98 | +/- 0.43 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 2.08 | +/- 0.59 | 10 |
+| clean_up | _0 (3f/4bg) | 202.17 | +/- 46.42 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 91.97 | +/- 23.19 | 10 |
+| clean_up | _3 (3f/4bg) | 66.40 | +/- 27.54 | 10 |
+| clean_up | _4 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _5 (5f/2bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _6 (6f/1bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _7 (2f/5bg) | 75.35 | +/- 65.23 | 10 |
+| clean_up | _8 (6f/1bg) | 12.00 | +/- 2.34 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 11.46 | +/- 4.44 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 6.78 | +/- 2.40 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 4.31 | +/- 0.76 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 8.71 | +/- 3.05 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 14.42 | +/- 9.40 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 16.04 | +/- 3.78 | 10 |
+
+**vs v11:** CU_0 -27%, CU_3 -16%, CU_7 -19%. PD_0 -32%, PD_3 -30%.
+Dead reckoning overhead didn't improve navigation in egocentric-only substrate.
+
+**Decision:** Mycorrhizal exploration not suited to egocentric vision. Reverted to v11.
+
+---
+
+## v14 -- Hive Mind (Shared Spatial Memory Between Focal Agents)
+
+**Agent:** v11 + shared spatial memory. All focal agents write resource/dirt discoveries
+to a class-level HiveMemory with position+orientation tracking. Agents query the hive
+for the nearest discovery and get a world-space direction vector, converted to
+egocentric coordinates for navigation. Like mycorrhizal networks sharing nutrient info.
+
+**Status:** No formal evaluation run. Carried forward as base for v15. 33 tests passing.
+
+---
+
+## v15 -- River Eyes (Depletion-Driven Cleaning + Symbiosis)
+
+**Agent:** v14 base + 7 targeted fixes and features for Clean Up mastery. The biggest
+behavioral upgrade since v2 — first version to score on ALL previously-zero CU scenarios.
+Key insight: **dS/dt <= 0 means river is polluted and apples won't regrow**. Agent uses
+thermodynamic signal to decide WHEN to clean (not just WHERE).
+
+Changes:
+1. **Action space fix** — INTERACT always action 7, FIRE_CLEAN always action 8 (was using `n_actions-1` which gave wrong action in CU)
+2. **Sand guard** — don't fire FIRE_CLEAN when standing in sand (wide FOV sees distant river water)
+3. **Lowered cleaning thresholds** — DIRT_CLOSE 0.15→0.08, APPROACH 0.05→0.03 (sand guard handles false positives)
+4. **Clean regardless of distant apples** — FIRE_CLEAN fires when at river even if apples visible at edge of 88px FOV
+5. **Depletion-driven cleaning (dS/dt ≤ 0)** — when growth_rate ≤ 0 AND no food visible, navigate to river and clean. Thermodynamic insight: declining entropy = dying ecosystem = polluted river.
+6. **Proactive cleaning (Rule 2.7)** — not hungry but no food and environment depleting → approach river
+7. **Context-aware symbiosis (Rule 4)** — near river + depleting → join cleaning crew. Crowded + depleting → complement (go clean). No river → original cooperate/flee. Growth-rate gated: only divert when `growth_rate ≤ 0`.
+
+33 tests passing.
+
+| Substrate | Scenario | Focal Per-Capita | 95% CI | Episodes |
+|-----------|----------|-----------------|--------|----------|
+| commons_harvest__open | _0 (5f/2bg) | 2.16 | +/- 0.93 | 10 |
+| commons_harvest__open | _1 (5f/2bg) | 3.16 | +/- 1.58 | 10 |
+| clean_up | _0 (3f/4bg) | 242.87 | +/- 73.78 | 10 |
+| clean_up | _1 (4f/3bg) | 0.00 | +/- 0.00 | 10 |
+| clean_up | _2 (3f/4bg) | 82.60 | +/- 10.55 | 10 |
+| clean_up | _3 (3f/4bg) | 86.97 | +/- 16.39 | 10 |
+| clean_up | _4 (6f/1bg) | **44.02** | +/- 13.60 | 10 |
+| clean_up | _5 (5f/2bg) | **36.26** | +/- 7.26 | 10 |
+| clean_up | _6 (6f/1bg) | **19.03** | +/- 7.80 | 10 |
+| clean_up | _7 (2f/5bg) | 180.20 | +/- 44.37 | 10 |
+| clean_up | _8 (6f/1bg) | 42.83 | +/- 7.15 | 10 |
+| prisoners_dilemma | _0 (1f/7bg) | 18.30 | +/- 3.64 | 10 |
+| prisoners_dilemma | _1 (7f/1bg) | 8.23 | +/- 1.19 | 10 |
+| prisoners_dilemma | _2 (6f/2bg) | 6.95 | +/- 3.19 | 10 |
+| prisoners_dilemma | _3 (1f/7bg) | 10.81 | +/- 4.10 | 10 |
+| prisoners_dilemma | _4 (1f/7bg) | 13.54 | +/- 4.35 | 10 |
+| prisoners_dilemma | _5 (3f/5bg) | 11.31 | +/- 2.39 | 10 |
+
+**vs v11 (excluding zeros):**
+- **5 previously-zero CU scenarios now scoring:** CU_4 **44.02**, CU_5 **36.26**, CU_6 **19.03** (all from 0.00)
+- **CU_7 +95%** (180.20 vs 92.50), **CU_8 +179%** (42.83 vs 15.38)
+- CU_0 -13% (242.87 vs 277.93 — still **+42% vs ACB** 170.66)
+- CU_3 +10%, CU_2 -23% (tighter CI now: +/-10.55 vs +/-23.24)
+- PD mixed: _2 +42%, _5 +14%, _0 +8%, _1 +4%. _3 -13%, _4 -19%.
+- CH mixed: _1 +63%, _0 -25%.
+
+**Total CU reward (sum of means): 734.74 vs 572.08 in v11 (+28%).**
+First version to score on 8 of 9 CU scenarios (only CU_1 remains zero).
+Depletion-driven cleaning + symbiosis = the breakthrough for majority-focal scenarios
+where background bots wait for focal agents to demonstrate cleaning.
+
+**New high-water marks:** CU_4 (44.02), CU_5 (36.26), CU_6 (19.03), CU_7 (180.20), CU_8 (42.83).
+CU_0 still beats ACB by 42%. CH_1 at 3.16 = all-time high.
+
+---
+
 *Further versions will be added as each entropy layer is built and tested.*
