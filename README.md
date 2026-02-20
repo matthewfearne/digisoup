@@ -191,7 +191,7 @@ Follows the official Melting Pot 2.0 evaluation:
 
 **Matthew Fearne** — Independent AI Researcher & Complexity Scientist
 
-mrfearne@gmail.com
+mrfearne@gmail.com | ORCID: [0009-0005-3986-4927](https://orcid.org/0009-0005-3986-4927)
 
 ## License
 
