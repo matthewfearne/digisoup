@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "DigiSoup: A Zero-Training Entropy-Driven Agent for Multi-Agent Social Dilemmas"
+authors:
+  - family-names: Fearne
+    given-names: Matthew
+    orcid: "https://orcid.org/0009-0005-3986-4927"
+    email: mrfearne@gmail.com
+    affiliation: Independent Researcher
+version: "15.0"
+date-released: "2026-02-21"
+license: MIT
+url: "https://github.com/matthewfearne/digisoup"
+doi: "10.5281/zenodo.18717202"
+repository-code: "https://github.com/matthewfearne/digisoup"
+keywords:
+  - multi-agent systems
+  - reinforcement learning
+  - entropy
+  - thermodynamic perception
+  - Melting Pot
+  - social dilemmas
+  - cooperation
+  - zero-training
+  - bio-inspired
+abstract: >-
+  DigiSoup is a zero-training agent that uses thermodynamic perception
+  and bio-inspired heuristics to play multi-agent social dilemmas on
+  DeepMind's Melting Pot benchmark. With no neural networks, no reward
+  optimisation, and approximately 350 lines of NumPy, DigiSoup
+  outperforms trained RL baselines in aggregate on Clean Up (+22% vs
+  ACB, +46% vs VMPO).
+preferred-citation:
+  type: article
+  title: "DigiSoup: A Zero-Training Entropy-Driven Agent Beats Trained Reinforcement Learning on Multi-Agent Social Dilemmas"
+  authors:
+    - family-names: Fearne
+      given-names: Matthew
+      orcid: "https://orcid.org/0009-0005-3986-4927"
+  doi: "10.5281/zenodo.18717202"
+  url: "https://doi.org/10.5281/zenodo.18717202"
+  year: 2026
+  month: 2
