@@ -46,17 +46,17 @@ and bio-inspired heuristics to play multi-agent social dilemmas on DeepMind's
 Melting Pot benchmark. DigiSoup uses no neural networks, no reward optimisation,
 and no training of any kind---actions are selected by a stack of priority rules
 driven by entropy gradients, temporal growth rates, and spatial memory, implemented
-in approximately 350 lines of NumPy. Despite this simplicity, DigiSoup outperforms
-DeepMind's trained reinforcement learning baselines (ACB, VMPO) on the majority of
-Clean Up scenarios---a complex public goods dilemma requiring collective action.
-On Clean Up scenario 0, DigiSoup scores 242.87 focal per-capita return versus
-ACB's 170.66 (+42\%) and VMPO's 180.24 (+35\%). Five previously intractable
-majority-focal scenarios, where trained agents score near zero, are solved through
-a thermodynamic depletion signal: when the entropy growth rate drops to zero
-($dS/dt \leq 0$), the agent infers that the shared resource is depleted and
-diverts to public goods maintenance. These results suggest that thermodynamic
-perception may offer a viable alternative to gradient-based learning for emergent
-cooperation in multi-agent systems.
+in approximately 350 lines of NumPy. Despite this simplicity, DigiSoup outperforms DeepMind's trained reinforcement
+learning baselines in aggregate on Clean Up---a complex public goods dilemma
+requiring collective action---scoring 22\% above ACB and 46\% above VMPO across
+9~scenarios (30~episodes each, 95\% confidence intervals reported). On CU\_7,
+just two DigiSoup focal agents among seven players score 234.00 versus ACB's
+120.41 (+94\%). Majority-focal scenarios where trained agents score near zero
+are solved through a thermodynamic depletion signal: when the entropy growth
+rate drops to zero ($dS/dt \leq 0$), the agent infers that the shared resource
+is depleted and diverts to public goods maintenance. These results suggest that
+thermodynamic perception may offer a viable alternative to gradient-based
+learning for emergent cooperation in multi-agent systems.
 \end{abstract}
 
 % ===================================================================
@@ -80,7 +80,8 @@ learning. The entire agent is approximately 350 lines of NumPy across four
 Python modules.
 
 Despite this radical simplicity, DigiSoup outperforms DeepMind's trained RL
-baselines on the majority of Clean Up scenarios in Melting Pot. Clean Up is
+baselines in aggregate on Clean Up in Melting Pot (+22\% vs ACB, +46\% vs
+VMPO across 9~scenarios). Clean Up is
 arguably the benchmark's hardest social dilemma: a river must be cleaned to
 allow apple regrowth, but cleaning is costly and individual agents are better
 off free-riding on others' labour. Trained RL agents frequently fail this
@@ -93,8 +94,8 @@ Our key contributions are:
     \item A fully explainable, zero-training agent architecture based on
           thermodynamic perception and bio-inspired heuristics.
     \item Demonstration that this agent outperforms trained RL baselines
-          (ACB~+42\%, VMPO~+35\% on Clean Up scenario~0) on the Melting Pot
-          benchmark.
+          in aggregate on the Melting Pot Clean Up substrate (+22\% vs ACB,
+          +46\% vs VMPO across 9~scenarios, 30~episodes each).
     \item A novel depletion-detection mechanism ($dS/dt \leq 0$) that solves
           the collective action problem in Clean Up's majority-focal scenarios,
           where all standard trained agents score near zero.
@@ -393,7 +394,9 @@ bio-inspired ``layer.'' Table~\ref{tab:versions} summarises key versions.
 \begin{table}[h]
 \centering
 \caption{Version evolution showing cumulative effect of each layer.
-CU\_0 focal per-capita return shown as representative metric.}
+CU\_0 focal per-capita return shown as representative metric.
+Versions v1--v11 from development evaluations (10 episodes);
+v15 is the final 30-episode result.}
 \label{tab:versions}
 \begin{tabular}{llrl}
 \toprule
@@ -408,7 +411,7 @@ v8 & Thermodynamic sensing & 221.87 & 4$\times$4 grid, $dS/dt$, KL \\
 v9 & Resource conservation & 256.70 & +50\% vs ACB \\
 v10 & Colour perception fix & 209.10 & Apple detection bug fixed \\
 v11 & Cleaning rule & 277.93 & CU\_0 peak \\
-v15 & Depletion + symbiosis & 242.87 & 5 zero$\rightarrow$scoring \\
+v15 & Depletion + symbiosis & 194.70 & 5 zero$\rightarrow$scoring \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -495,8 +498,8 @@ These results challenge two assumptions:
 \label{sec:conclusion}
 
 We presented DigiSoup, a zero-training entropy-driven agent that outperforms
-trained reinforcement learning baselines on the majority of Clean Up scenarios
-in DeepMind's Melting Pot benchmark. The agent's success is driven by a
+trained reinforcement learning baselines in aggregate on Clean Up in
+DeepMind's Melting Pot benchmark (+22\% vs ACB, +46\% vs VMPO). The agent's success is driven by a
 thermodynamic depletion signal ($dS/dt \leq 0$) that solves the collective
 action problem without reward optimisation, and by bio-inspired heuristics
 (slime mould memory, jellyfish oscillation, mycorrhizal sharing) that provide

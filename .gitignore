@@ -5,3 +5,9 @@ __pycache__/
 .pytest_cache/
 .claude/
 CLAUDE.md
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.log
+paper/*.blg
+paper/*.out

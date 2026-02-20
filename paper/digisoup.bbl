@@ -1,0 +1,66 @@
+\begin{thebibliography}{8}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Agapiou et~al.(2023)Agapiou, Vezhnevets, Due{\~n}ez-Guzm{\'a}n,
+  Matyas, Mao, Sunehag, Köster, Madhushani, Kopparapu, Comanescu,
+  et~al.]{agapiou2023meltingpot2}
+John~P Agapiou, Alexander~Sasha Vezhnevets, Edgar~A Due{\~n}ez-Guzm{\'a}n, Jayd
+  Matyas, Yiran Mao, Peter Sunehag, Raphael Köster, Udari Madhushani, Kavya
+  Kopparapu, Ramona Comanescu, et~al.
+\newblock Melting pot 2.0.
+\newblock \emph{arXiv preprint arXiv:2211.13746}, 2023.
+
+\bibitem[Bonabeau et~al.(1999)Bonabeau, Dorigo, and
+  Theraulaz]{bonabeau1999swarm}
+Eric Bonabeau, Marco Dorigo, and Guy Theraulaz.
+\newblock \emph{Swarm Intelligence: From Natural to Artificial Systems}.
+\newblock Oxford University Press, 1999.
+
+\bibitem[Eysenbach et~al.(2019)Eysenbach, Gupta, Ibarz, and
+  Levine]{eysenbach2019diayn}
+Benjamin Eysenbach, Abhishek Gupta, Julian Ibarz, and Sergey Levine.
+\newblock Diversity is all you need: Learning skills without a reward function.
+\newblock In \emph{International Conference on Learning Representations}, 2019.
+
+\bibitem[Friston(2010)]{friston2010free}
+Karl Friston.
+\newblock The free-energy principle: a unified brain theory?
+\newblock \emph{Nature Reviews Neuroscience}, 11\penalty0 (2):\penalty0
+  127--138, 2010.
+
+\bibitem[Leibo et~al.(2021)Leibo, Due{\~n}ez-Guzm{\'a}n, Vezhnevets, Agapiou,
+  Sunehag, Koster, Matyas, Beattie, Mordatch, and Graepel]{leibo2021meltingpot}
+Joel~Z Leibo, Edgar~A Due{\~n}ez-Guzm{\'a}n, Alexander Vezhnevets, John~P
+  Agapiou, Peter Sunehag, Raphael Koster, Jayd Matyas, Charles Beattie, Igor
+  Mordatch, and Thore Graepel.
+\newblock Scalable evaluation of multi-agent reinforcement learning with
+  {Melting Pot}.
+\newblock In \emph{International Conference on Machine Learning}, pages
+  6187--6199. PMLR, 2021.
+
+\bibitem[Li et~al.(2020)Li, Chen, Wang, Heidari, and Mirjalili]{li2020slime}
+Shimin Li, Huiling Chen, Mingjing Wang, Ali~Asghar Heidari, and Seyedali
+  Mirjalili.
+\newblock Slime mould algorithm: A new method for stochastic optimization.
+\newblock \emph{Future Generation Computer Systems}, 111:\penalty0 300--323,
+  2020.
+
+\bibitem[Pathak et~al.(2017)Pathak, Agrawal, Efros, and
+  Darrell]{pathak2017curiosity}
+Deepak Pathak, Pulkit Agrawal, Alexei~A Efros, and Trevor Darrell.
+\newblock Curiosity-driven exploration by self-supervised prediction.
+\newblock In \emph{International Conference on Machine Learning}, pages
+  2778--2787. PMLR, 2017.
+
+\bibitem[Tero et~al.(2010)Tero, Takagi, Saigusa, Ito, Bebber, Fricker, Yumiki,
+  Kobayashi, and Nakagaki]{tero2010rules}
+Atsushi Tero, Seiji Takagi, Tetsu Saigusa, Kentaro Ito, Dan~P Bebber, Mark~D
+  Fricker, Kenji Yumiki, Ryo Kobayashi, and Toshiyuki Nakagaki.
+\newblock Rules for biologically inspired adaptive network design.
+\newblock \emph{Science}, 327\penalty0 (5964):\penalty0 439--442, 2010.
+
+\end{thebibliography}
