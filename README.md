@@ -123,11 +123,11 @@ evaluation/
   metrics.py       # Metrics and aggregation
   compare.py       # DeepMind baseline comparison
 
-configs/scenarios.py   # Scenario configurations (17 scenarios)
-tests/test_agent.py    # 33 tests
-results/               # JSON results per run (timestamped)
-VERSION_LOG.md         # Full score log across all versions
-watch.py               # Live pygame viewer
+configs/scenarios.py    # Scenario configurations (17 scenarios)
+tests/test_agent.py     # 33 tests
+results/                # JSON results per run (timestamped)
+VERSION_LOG.md          # Full score log across all versions
+watch.py                # Live pygame viewer
 ```
 
 ## Evaluation Protocol
