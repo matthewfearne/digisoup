@@ -239,6 +239,7 @@ def main(argv: list[str] | None = None) -> None:
     group.add_argument("--substrate", type=str, help="Run all scenarios for a substrate.")
     group.add_argument("--scenario", type=str, help="Run a single scenario.")
     group.add_argument("--all-targets", action="store_true", help="Run all target substrates.")
+    group.add_argument("--all-substrates", action="store_true", help="Run ALL Melting Pot substrates (mega run).")
     parser.add_argument("--episodes", type=int, default=10, help="Episodes per scenario (default: 10).")
     parser.add_argument("--seed", type=int, default=None, help="Base random seed.")
     parser.add_argument("--label", type=str, default="digisoup", help="Label for results file.")
@@ -261,6 +262,14 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.all_targets:
         for sub in TARGET_SUBSTRATES:
+            results = run_substrate(sub, args.episodes, args.seed)
+            all_results.extend(results)
+
+    elif args.all_substrates:
+        all_subs = sorted(mp_scenario.SCENARIOS_BY_SUBSTRATE.keys())
+        console.print(f"[bold yellow]MEGA RUN: {len(all_subs)} substrates, "
+                      f"{sum(len(mp_scenario.SCENARIOS_BY_SUBSTRATE[s]) for s in all_subs)} scenarios[/bold yellow]")
+        for sub in all_subs:
             results = run_substrate(sub, args.episodes, args.seed)
             all_results.extend(results)
 
