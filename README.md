@@ -5,7 +5,7 @@ optimisation beats DeepMind's trained reinforcement learning baselines on Clean 
 — the hardest social dilemma in the
 [Melting Pot](https://github.com/google-deepmind/meltingpot) benchmark.
 
-**Paper:** [`paper/digisoup.pdf`](paper/digisoup.pdf) — submitted to arXiv (cs.MA)
+**Paper:** [`paper/digisoup.pdf`](paper/digisoup.pdf) | **DOI:** [10.5281/zenodo.18717202](https://doi.org/10.5281/zenodo.18717202)
 
 ## Key Results (v15 "River Eyes" — 30 episodes, 95% CI)
 
