@@ -1,0 +1,31 @@
+{
+  "timestamp": 1771730633.156867,
+  "label": "ch0_proto_strong",
+  "results": [
+    {
+      "n_episodes": 10,
+      "focal_per_capita": {
+        "mean": 4.12,
+        "std": 1.9095083718649208,
+        "ci95": 1.2076791332505865,
+        "min": 1.6,
+        "max": 8.2,
+        "all": [
+          4.0,
+          8.2,
+          2.8,
+          6.0,
+          3.6,
+          3.0,
+          5.4,
+          3.4,
+          3.2,
+          1.6
+        ]
+      },
+      "mean_steps": 1339.0,
+      "scenario": "commons_harvest__open_0",
+      "substrate": "commons_harvest__open"
+    }
+  ]
+}

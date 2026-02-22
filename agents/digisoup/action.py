@@ -176,6 +176,7 @@ def select_action(
     n_actions: int = 8,
     rng: np.random.Generator | None = None,
     hive_direction: np.ndarray | None = None,
+    protocol_boost: float = 0.0,
 ) -> int:
     """Choose action using phase-modulated entropy-gradient priority rules.
 
@@ -313,7 +314,8 @@ def select_action(
             return _move_away(agent_dir, rng, heading)
         else:
             # No river context → original cooperate/flee for PD/CH
-            coop_threshold = 0.7 if phase == "explore" else 0.3
+            # Protocol boost lowers threshold → more cooperation with shared protocol
+            coop_threshold = (0.7 if phase == "explore" else 0.3) - protocol_boost
             if state.cooperation_tendency > coop_threshold:
                 return interact_action
             else:

@@ -87,7 +87,7 @@ def run_episode(
     states: list[DigiSoupState] = []
     for i in range(n_focal):
         policy_seed = (seed + i) if seed is not None else (42 + i)
-        p = DigiSoupPolicy(seed=policy_seed, n_actions=n_actions)
+        p = DigiSoupPolicy(seed=policy_seed, n_actions=n_actions, agent_index=i)
         policies.append(p)
         states.append(p.initial_state())
 
@@ -243,11 +243,30 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--episodes", type=int, default=10, help="Episodes per scenario (default: 10).")
     parser.add_argument("--seed", type=int, default=None, help="Base random seed.")
     parser.add_argument("--label", type=str, default="digisoup", help="Label for results file.")
+    parser.add_argument("--protocol-file", type=str, default=None,
+                        help="Path to GlyphDrift protocols.json for protocol boost.")
+    parser.add_argument("--protocol-boost", type=float, default=0.0,
+                        help="Protocol boost strength (0.0=disabled, 0.15=moderate, 0.3=strong).")
+    parser.add_argument("--heterogeneous", action="store_true",
+                        help="Assign different protocols to focal agents (round-robin).")
     args = parser.parse_args(argv)
 
     console.print()
     console.print("[bold]DigiSoup vs Melting Pot -- Official Evaluation[/bold]")
     console.print(f"Agent: zero-training entropy-driven (reward never used)")
+
+    # Configure GlyphDrift protocol integration
+    if args.protocol_file:
+        DigiSoupPolicy.configure_protocols(
+            protocol_file=args.protocol_file,
+            boost_strength=args.protocol_boost,
+            heterogeneous=args.heterogeneous,
+        )
+        mode = "heterogeneous" if args.heterogeneous else "homogeneous"
+        console.print(f"Protocol: {mode}, boost={args.protocol_boost}, file={args.protocol_file}")
+    else:
+        console.print(f"Protocol: disabled (no protocol file)")
+
     console.print()
 
     all_results: list[dict[str, Any]] = []

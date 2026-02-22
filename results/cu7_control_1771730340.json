@@ -1,0 +1,31 @@
+{
+  "timestamp": 1771730340.2125726,
+  "label": "cu7_control",
+  "results": [
+    {
+      "n_episodes": 10,
+      "focal_per_capita": {
+        "mean": 243.7,
+        "std": 108.27105902420195,
+        "ci95": 68.47663023900117,
+        "min": 0.0,
+        "max": 399.5,
+        "all": [
+          302.5,
+          249.5,
+          399.5,
+          246.5,
+          352.0,
+          189.0,
+          194.0,
+          229.5,
+          274.5,
+          0.0
+        ]
+      },
+      "mean_steps": 1539.0,
+      "scenario": "clean_up_7",
+      "substrate": "clean_up"
+    }
+  ]
+}

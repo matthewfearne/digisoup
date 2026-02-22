@@ -11,6 +11,7 @@ from __future__ import annotations
 import dm_env
 import numpy as np
 
+from .communication import ProtocolManager, load_glyph_protocols
 from .perception import perceive
 from .state import DigiSoupState, initial_state, update_state, ego_to_world
 from .action import select_action
@@ -83,6 +84,24 @@ class DigiSoupPolicy:
     """
 
     _hive: HiveMemory | None = None  # shared across all instances
+    _protocol_mgr: ProtocolManager | None = None
+    _heterogeneous: bool = False
+
+    @classmethod
+    def configure_protocols(
+        cls,
+        protocol_file: str | None = None,
+        boost_strength: float = 0.3,
+        heterogeneous: bool = False,
+    ) -> None:
+        """Load GlyphDrift protocols and configure the protocol manager.
+
+        Call this BEFORE creating policy instances. All instances share
+        the same protocol manager (class-level, like HiveMemory).
+        """
+        protocols = load_glyph_protocols(protocol_file) if protocol_file else []
+        cls._protocol_mgr = ProtocolManager(protocols, boost_strength)
+        cls._heterogeneous = heterogeneous
 
     @classmethod
     def _get_hive(cls) -> HiveMemory:
@@ -96,10 +115,25 @@ class DigiSoupPolicy:
         if cls._hive is not None:
             cls._hive.reset()
 
-    def __init__(self, seed: int = 42, n_actions: int = 8) -> None:
+    def __init__(self, seed: int = 42, n_actions: int = 8, agent_index: int = 0) -> None:
         self._rng = np.random.default_rng(seed)
         self._n_actions = n_actions
         self._hive_ref = self._get_hive()
+        self._agent_index = agent_index
+        self._protocol_boost = 0.0
+
+        # Assign protocol and precompute per-step boost
+        mgr = self._protocol_mgr
+        if mgr is not None and mgr.enabled:
+            if self._heterogeneous:
+                mgr.assign_protocol(agent_index, agent_index)
+            else:
+                mgr.assign_protocol(agent_index, 0)  # all share protocol 0
+            # For homogeneous: all agents share protocol 0, boost is based on
+            # self-similarity (1.0). For heterogeneous: boost varies by pair.
+            # Use average boost across all assigned agents as this agent's bias.
+            # Simple version: compute boost against agent 0 (reference agent).
+            self._protocol_boost = mgr.compute_boost(agent_index, 0)
 
     def initial_state(self) -> DigiSoupState:
         """Return the initial agent state. Resets hive for new episode."""
@@ -145,6 +179,7 @@ class DigiSoupPolicy:
         action = select_action(
             perception, prev_state, self._n_actions, self._rng,
             hive_direction=hive_world_dir if has_hive else None,
+            protocol_boost=self._protocol_boost,
         )
 
         # Update internal state (energy, cooperation, entropy estimate, memory)
